@@ -130,7 +130,7 @@ const ReverseStrategist = () => {
 
                                 {/* Generate Button */}
                                 <button
-                                    onClick={handleGenerate}
+                                    onClick={() => handleGenerate()}
                                     disabled={loading || !goalQuery.trim()}
                                     className="w-full py-5 bg-gradient-to-r from-rose-500 to-orange-500 rounded-2xl text-white font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-rose-900/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3 disabled:opacity-50"
                                 >

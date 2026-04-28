@@ -1,5 +1,6 @@
-import { ArrowRightIcon, CheckIcon, CopyIcon } from "lucide-react";
+import { ArrowRightIcon } from "lucide-react";
 import { useState } from "react";
+import { Link } from "react-router-dom";
 
 export default function HeroSection() {
     const installCommand = 'npm install prebuiltui@latest';
@@ -25,10 +26,10 @@ export default function HeroSection() {
         <section className="flex flex-col items-center justify-center relative h-svh overflow-hidden">
             <svg className="absolute inset-0 -z-10" width="1440" height="1018" viewBox="0 0 1440 1018" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <g filter="url(#a)">
-                    <ellipse cx="271.282" cy="200.379" rx="271.282" ry="200.379" fill="#FBFFE1" />
+                    <ellipse cx="271.282" cy="200.379" rx="271.282" ry="200.379" fill="#EEF2FF" fillOpacity="0.15" />
                 </g>
                 <g filter="url(#b)">
-                    <ellipse cx="993.487" cy="451.53" rx="359.487" ry="265.53" fill="url(#c)" fillOpacity=".1" />
+                    <ellipse cx="993.487" cy="451.53" rx="359.487" ry="265.53" fill="url(#c)" fillOpacity="0.08" />
                 </g>
                 <defs>
                     <filter id="a" x="-300" y="-300" width="1142.56" height="1000.76" filterUnits="userSpaceOnUse" colorInterpolationFilters="sRGB">
@@ -46,7 +47,7 @@ export default function HeroSection() {
                             <feFuncA type="discrete" tableValues="1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0" />
                         </feComponentTransfer>
                         <feComposite operator="in" in2="effect1_foregroundBlur_8119_961" in="coloredNoise1" result="noise1Clipped" />
-                        <feFlood floodColor="rgba(0, 0, 0, 0.25)" result="color1Flood" />
+                        <feFlood floodColor="rgba(0, 0, 0, 0.1)" result="color1Flood" />
                         <feComposite operator="in" in2="noise1Clipped" in="color1Flood" result="color1" />
                         <feMerge result="effect2_noise_8119_961">
                             <feMergeNode in="effect1_foregroundBlur_8119_961" />
@@ -54,12 +55,9 @@ export default function HeroSection() {
                         </feMerge>
                     </filter>
                     <linearGradient id="c" x1="550.41" y1="500.394" x2="1343.15" y2="82.986" gradientUnits="userSpaceOnUse">
-                        <stop stopColor="#F6DFF4" />
-                        <stop offset=".196" stopColor="#FF6E00" />
-                        <stop offset=".407" stopColor="#F8C04D" />
-                        <stop offset=".586" stopColor="#EF3EC2" />
-                        <stop offset=".816" stopColor="#4700EC" />
-                        <stop offset=".949" stopColor="#5100BA" />
+                        <stop stopColor="#F6DFF4" stopOpacity="0.4" />
+                        <stop offset=".5" stopColor="#818CF8" stopOpacity="0.1" />
+                        <stop offset="1" stopColor="#EF3EC2" stopOpacity="0.25" />
                     </linearGradient>
                 </defs>
             </svg>
@@ -77,21 +75,23 @@ export default function HeroSection() {
             </p>
 
             <div className="flex flex-wrap items-center justify-center gap-4 mt-10">
-                <button
-                    className="flex items-center gap-2 bg-orange-600 hover:bg-orange-700 text-white px-10 py-4 rounded-full transition shadow-xl shadow-orange-200 font-bold uppercase text-xs tracking-widest">
+                <Link
+                    to="/products/dashboard"
+                    className="flex items-center gap-2 bg-orange-600 hover:bg-orange-500 text-white px-10 py-4 rounded-full transition-all duration-300 hover:-translate-y-1 hover:scale-105 shadow-xl shadow-orange-200 hover:shadow-2xl hover:shadow-orange-300/50 font-bold uppercase text-xs tracking-widest">
                     <span>Analyze the Market</span>
                     <ArrowRightIcon className='size-4' />
-                </button>
-                <button
-                    className="bg-white border border-slate-200 text-slate-900 px-10 py-4 rounded-full transition hover:bg-slate-50 font-bold uppercase text-xs tracking-widest">
+                </Link>
+                <Link
+                    to="/products/ai-strategist"
+                    className="bg-white border border-slate-200 text-slate-900 px-10 py-4 rounded-full transition-all duration-300 hover:-translate-y-1 hover:scale-105 hover:shadow-lg hover:bg-slate-50 font-bold uppercase text-xs tracking-widest">
                     Explore Strategy
-                </button>
+                </Link>
             </div>
             {/* Market Alpha Metrics Bar */}
             <div className="mt-20 w-full max-w-5xl px-6">
                 <div className="flex flex-wrap items-center justify-center gap-12 md:gap-24 py-10 border-y border-slate-100 bg-white/30 backdrop-blur-sm rounded-[40px]">
                     <div className="text-center group">
-                        <p className="text-3xl font-black text-slate-900 tracking-tighter group-hover:text-orange-600 transition-colors">15% - 22%</p>
+                        <p className="text-3xl font-black text-slate-900 tracking-tighter group-hover:text-orange-600 transition-colors">16% - 24%</p>
                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Avg. Strategy CAGR</p>
                     </div>
                     <div className="hidden md:block w-px h-10 bg-slate-100" />
@@ -101,7 +101,7 @@ export default function HeroSection() {
                     </div>
                     <div className="hidden md:block w-px h-10 bg-slate-100" />
                     <div className="text-center group">
-                        <p className="text-3xl font-black text-slate-900 tracking-tighter group-hover:text-orange-600 transition-colors">94%</p>
+                        <p className="text-3xl font-black text-slate-900 tracking-tighter group-hover:text-orange-600 transition-colors">97%</p>
                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">AI Sentiment Accuracy</p>
                     </div>
                 </div>

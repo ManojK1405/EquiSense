@@ -42,7 +42,7 @@ export default function Footer() {
                         Institutional-grade quantitative research and AI-driven wealth strategies for the modern investor.
                     </p>
                 </div>
-                
+
                 {sections.map((section, idx) => (
                     <div key={idx}>
                         <p className="font-black text-slate-900 uppercase tracking-widest text-[10px] mb-6">{section.title}</p>

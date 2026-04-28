@@ -34,15 +34,15 @@ export default function Navbar() {
         {
             name: 'Products',
             subLinks: [
-                { name: 'Stock Analysis', href: '/dashboard', icon: LayoutDashboard, description: 'Deep quantitative research' },
-                { name: 'Portfolio Hub', href: '/portfolio', icon: Briefcase, description: 'Live tracking & paper trading' },
+                { name: 'Stock Analysis', href: '/products/dashboard', icon: LayoutDashboard, description: 'Deep quantitative research' },
+                { name: 'Portfolio Hub', href: '/products/portfolio', icon: Briefcase, description: 'Live tracking & paper trading' },
                 { name: 'Intraday Pulse', href: '/products/intraday-pulse', icon: Activity, description: 'Real-time market momentum' },
                 { name: 'AI Strategist', href: '/products/ai-strategist', icon: Brain, description: 'AI-driven custom logic' },
                 { name: 'Goal Backcaster', href: '/products/goal-backcaster', icon: History, description: 'Goal-based wealth backcasting' },
                 { name: 'Backtester', href: '/products/backtester', icon: BarChart2, description: 'Simulate strategies on historical data' },
             ],
         },
-        { name: 'Stories', href: '/stories' },
+        { name: 'Our Story', href: '/about-us' },
     ];
 
     const handleLogout = () => {
@@ -53,7 +53,7 @@ export default function Navbar() {
 
     return (
         <>
-            <nav className='sticky top-0 z-50 flex w-full items-center justify-between bg-white/50 px-4 py-3.5 backdrop-blur-md md:px-16 lg:px-24'>
+            <nav className='sticky top-0 z-50 flex w-full items-center justify-between bg-gradient-to-r from-indigo-50/20 via-slate-50/90 to-rose-50/50 px-4 py-3.5 backdrop-blur-md border-b border-slate-200/30 md:px-16 lg:px-24'>
                 <Link to='/' className='flex items-center gap-2'>
                     <span className='text-2xl font-black text-slate-900 tracking-tighter italic uppercase underline decoration-orange-600 decoration-4 underline-offset-4'>Equi<span className='text-premium'>Sense</span></span>
                 </Link>

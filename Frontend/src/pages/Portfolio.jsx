@@ -18,17 +18,32 @@ const COLORS = ['#0f172a', '#ea580c', '#64748b', '#94a3b8', '#cbd5e1', '#334155'
 
 const Portfolio = () => {
     const { user, refreshUser } = useAuth();
-    const [watchlist, setWatchlist] = useState([]);
+    // Local Cache Key
+    const CACHE_KEY = `equisense_portfolio_cache_${user?.id || 'guest'}`;
+
+    // Helper to get initial state from cache
+    const getCached = (key, fallback) => {
+        try {
+            const cached = localStorage.getItem(CACHE_KEY);
+            if (cached) {
+                const parsed = JSON.parse(cached);
+                return parsed[key] !== undefined ? parsed[key] : fallback;
+            }
+        } catch (e) { console.error('Cache read error', e); }
+        return fallback;
+    };
+
+    const [watchlist, setWatchlist] = useState(() => getCached('watchlist', []));
     const [watchlistSymbol, setWatchlistSymbol] = useState('');
     const [searchSuggestions, setSearchSuggestions] = useState([]);
     const [isSearching, setIsSearching] = useState(false);
-    const [portfolio, setPortfolio] = useState([]);
-    const [tradeQueue, setTradeQueue] = useState([]);
-    const [tradeLogs, setTradeLogs] = useState([]);
-    const [mockBalance, setMockBalance] = useState(0);
-    const [settlementBalance, setSettlementBalance] = useState(0);
-    const [autoPilot, setAutoPilot] = useState(false);
-    const [loading, setLoading] = useState(true);
+    const [portfolio, setPortfolio] = useState(() => getCached('portfolio', []));
+    const [tradeQueue, setTradeQueue] = useState(() => getCached('tradeQueue', []));
+    const [tradeLogs, setTradeLogs] = useState(() => getCached('tradeLogs', []));
+    const [mockBalance, setMockBalance] = useState(() => getCached('mockBalance', 0));
+    const [settlementBalance, setSettlementBalance] = useState(() => getCached('settlementBalance', 0));
+    const [autoPilot, setAutoPilot] = useState(() => getCached('autoPilot', false));
+    const [loading, setLoading] = useState(!localStorage.getItem(CACHE_KEY)); // Only load if no cache
     const [showAddModal, setShowAddModal] = useState(false);
     const [showTopUpModal, setShowTopUpModal] = useState(false);
     const [showDetailModal, setShowDetailModal] = useState(null);
@@ -41,23 +56,25 @@ const Portfolio = () => {
     const [showExecuteConfirm, setShowExecuteConfirm] = useState(false);
     const [pendingExecution, setPendingExecution] = useState(null);
 
-    const [brokerOrders, setBrokerOrders] = useState([]);
+    const [brokerOrders, setBrokerOrders] = useState(() => getCached('brokerOrders', []));
     const [activeTab, setActiveTab] = useState('portfolio'); // portfolio | analysis | orders
     const [selectedBroker, setSelectedBroker] = useState('zerodha');
     const [showBrokerModal, setShowBrokerModal] = useState(false);
-    const [marketOpen, setMarketOpen] = useState(false);
+    const [marketOpen, setMarketOpen] = useState(() => getCached('marketOpen', false));
     const [showPilotModal, setShowPilotModal] = useState(false);
     const [showDisengageModal, setShowDisengageModal] = useState(false);
     const [pilotConfig, setPilotConfig] = useState({ mode: 'full', limit: '5000' });
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [isAnalyzingPortfolio, setIsAnalyzingPortfolio] = useState(false);
     const [portfolioReport, setPortfolioReport] = useState(null);
-    const [dailyReports, setDailyReports] = useState([]);
+    const [dailyReports, setDailyReports] = useState(() => getCached('dailyReports', []));
 
     const fetchData = async (overrideMode = null) => {
         const activeMode = overrideMode || mode;
         try {
-            setLoading(true);
+            // Only show full loader if we have zero data
+            if (portfolio.length === 0) setLoading(true);
+            
             const [watchlistRes, portfolioRes, queueRes, logsRes, marketStatusRes, ordersRes, reportsRes] = await Promise.all([
                 api.get('/portfolio/watchlist'),
                 api.get(`/portfolio/portfolio?mode=${activeMode}`),
@@ -67,20 +84,35 @@ const Portfolio = () => {
                 api.get('/portfolio/orders'),
                 api.get('/portfolio/reports')
             ]);
+            
+            const isPilotActive = activeMode === 'live' ? portfolioRes.data.autoPilotLive : portfolioRes.data.autoPilotMock;
+
+            // Update states
             setWatchlist(watchlistRes.data);
             setPortfolio(portfolioRes.data.items || []);
             setMockBalance(portfolioRes.data.mockBalance || 0);
             setSettlementBalance(portfolioRes.data.settlementBalance || 0);
-            
-            // Set local autopilot state based on current mode
-            const isPilotActive = activeMode === 'live' ? portfolioRes.data.autoPilotLive : portfolioRes.data.autoPilotMock;
             setAutoPilot(isPilotActive);
-            
             setTradeQueue(queueRes.data);
             setTradeLogs(logsRes.data);
             setBrokerOrders(ordersRes.data || []);
             setMarketOpen(marketStatusRes.data.isOpen);
             setDailyReports(reportsRes.data || []);
+
+            // PERSIST TO CACHE
+            localStorage.setItem(CACHE_KEY, JSON.stringify({
+                watchlist: watchlistRes.data,
+                portfolio: portfolioRes.data.items || [],
+                mockBalance: portfolioRes.data.mockBalance || 0,
+                settlementBalance: portfolioRes.data.settlementBalance || 0,
+                autoPilot: isPilotActive,
+                tradeQueue: queueRes.data,
+                tradeLogs: logsRes.data,
+                brokerOrders: ordersRes.data || [],
+                marketOpen: marketStatusRes.data.isOpen,
+                dailyReports: reportsRes.data || []
+            }));
+
         } catch (error) {
             console.error('Error fetching data:', error);
         } finally {
@@ -450,7 +482,12 @@ const Portfolio = () => {
     const upcomingTrades = tradeQueue.filter(t => t.status === 'PENDING' || t.status === 'FAILED');
 
     return (
-        <div className="bg-[#fcfdfe] min-h-screen p-6 md:p-12 pb-32">
+        <motion.div 
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, ease: "easeOut" }}
+            className="bg-transparent min-h-screen p-6 md:p-12 pb-32"
+        >
             <div className="max-w-7xl mx-auto">
                 <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-16 gap-8">
                     <div className="space-y-1">
@@ -1564,7 +1601,7 @@ const Portfolio = () => {
                     </div>
                 )}
             </AnimatePresence>
-        </div>
+        </motion.div>
     );
 };
 

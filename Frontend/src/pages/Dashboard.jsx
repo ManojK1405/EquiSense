@@ -3,13 +3,22 @@ import { Link } from 'react-router-dom';
 import { Search, TrendingUp, BarChart3, PieChart, Newspaper, ArrowUpRight, ArrowDownRight, Globe, Layers, Cpu, RefreshCw, Info, Activity, Zap, Maximize2, Building2, MessageSquare, ChevronDown, ChevronUp, ArrowRight, Target, ShieldCheck, Eye, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import api from '../api';
+import { useAuth } from '../context/AuthContext';
 import FeatureLock from '../components/feature-lock';
 import { toast } from 'react-hot-toast';
 
 const Dashboard = () => {
+    const { user } = useAuth();
+    const CACHE_KEY = `equisense_dashboard_cache_${user?.id || 'guest'}`;
+
     const [searchQuery, setSearchQuery] = useState('');
-    const [marketData, setMarketData] = useState(null);
-    const [loading, setLoading] = useState(true);
+    const [marketData, setMarketData] = useState(() => {
+        try {
+            const cached = localStorage.getItem(CACHE_KEY);
+            return cached ? JSON.parse(cached) : null;
+        } catch (e) { return null; }
+    });
+    const [loading, setLoading] = useState(!localStorage.getItem(CACHE_KEY));
 
     const [searchResults, setSearchResults] = useState([]);
     const [showSuggestions, setShowSuggestions] = useState(false);
@@ -22,9 +31,10 @@ const Dashboard = () => {
 
     const fetchMarket = async () => {
         try {
-            setLoading(true);
+            if (!marketData) setLoading(true);
             const res = await api.get('/market/summary');
             setMarketData(res.data);
+            localStorage.setItem(CACHE_KEY, JSON.stringify(res.data));
         } catch (e) {
             console.error(e);
         } finally {
@@ -104,7 +114,12 @@ const Dashboard = () => {
     }, [selectedStock]);
 
     return (
-        <div className="bg-[#fcfdfe] min-h-screen">
+        <motion.div 
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, ease: "easeOut" }}
+            className="bg-transparent min-h-screen"
+        >
             <div className="max-w-7xl mx-auto px-6 py-12 lg:py-16 text-center">
                 <h2 className="text-sm font-black text-orange-600 uppercase tracking-[0.3em] mb-4">Stock Analysis</h2>
                 <h1 className="text-5xl font-black text-slate-900 tracking-tight italic uppercase mb-16 underline decoration-orange-600 underline-offset-8 pb-4">Research <span className="text-premium">Terminal</span></h1>
@@ -158,6 +173,16 @@ const Dashboard = () => {
                                     <TrendingUp className="w-6 h-6 text-orange-600" />
                                     Market Analysis
                                 </h3>
+                            </div>
+
+                            <div className="mb-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                                {marketData?.pulse?.map((idx) => (
+                                    <div key={idx.symbol} className={`p-6 rounded-3xl border ${idx.changePercent >= 0 ? 'bg-emerald-50 border-emerald-100' : 'bg-rose-50 border-rose-100'}`}>
+                                        <p className={`text-[10px] font-black uppercase tracking-widest mb-1 ${idx.changePercent >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{idx.name}</p>
+                                        <p className={`text-xl font-bold ${idx.changePercent >= 0 ? 'text-emerald-900' : 'text-rose-900'}`}>₹{idx.price.toLocaleString()}</p>
+                                        <p className={`text-xs font-bold mt-1 ${idx.changePercent >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{idx.changePercent.toFixed(2)}%</p>
+                                    </div>
+                                ))}
                             </div>
 
                             {!selectedStock ? (
@@ -400,15 +425,7 @@ const Dashboard = () => {
                                 </FeatureLock>
                              ) : null}
 
-                            <div className="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                                {marketData?.pulse?.map((idx) => (
-                                    <div key={idx.symbol} className={`p-6 rounded-3xl border ${idx.changePercent >= 0 ? 'bg-emerald-50 border-emerald-100' : 'bg-rose-50 border-rose-100'}`}>
-                                        <p className={`text-[10px] font-black uppercase tracking-widest mb-1 ${idx.changePercent >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{idx.name}</p>
-                                        <p className={`text-xl font-bold ${idx.changePercent >= 0 ? 'text-emerald-900' : 'text-rose-900'}`}>₹{idx.price.toLocaleString()}</p>
-                                        <p className={`text-xs font-bold mt-1 ${idx.changePercent >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{idx.changePercent.toFixed(2)}%</p>
-                                    </div>
-                                ))}
-                            </div>
+
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -748,7 +765,7 @@ const Dashboard = () => {
                     </div>
                 )}
             </AnimatePresence>
-        </div>
+        </motion.div>
     );
 };
 

@@ -66,10 +66,12 @@ import { processPendingQueue } from './controllers/portfolio.controller.js';
 import { setupSocketHandlers } from './utils/socket.js';
 import { startAutoPilotService } from './services/autopilot.service.js';
 import { startReportService } from './services/report.service.js';
+import { startNewsletterService } from './services/newsletter.service.js';
 
 setupSocketHandlers();
 startAutoPilotService();
 startReportService();
+startNewsletterService();
 
 // Market hours check every 5 minutes
 cron.schedule('*/5 * * * *', async () => {
@@ -81,12 +83,25 @@ cron.schedule('*/5 * * * *', async () => {
   }
 });
 
-cron.schedule('*/30 * * * *', async () => {
+import { getMarketSummaryData } from './services/market.service.js';
+import { refreshIntradayPulseCache } from './controllers/strategy.controller.js';
+
+cron.schedule('*/20 * * * *', async () => {
   console.log('--- Running Background Stock & News Update ---');
   try {
+    await getMarketSummaryData();
     console.log('Successfully updated market insights.');
   } catch (error) {
     console.error('Error in background job:', error);
+  }
+});
+
+cron.schedule('*/30 * * * *', async () => {
+  console.log('--- Running Background Intraday Pulse Refresh ---');
+  try {
+    await refreshIntradayPulseCache();
+  } catch (error) {
+    console.error('Error in Intraday Pulse refresh job:', error);
   }
 });
 

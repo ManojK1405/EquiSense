@@ -14,6 +14,10 @@ const yahooFinance = new YahooFinance({
     validation: { logErrors: false }
 });
 
+// Cache for Intraday Pulse
+const pulseCache = new Map();
+const PULSE_CACHE_DURATION = 30 * 60 * 1000; // 30 minutes
+
 async function getDynamicSymbols(sector, count = 8) {
   const prompt = `
     Persona: Senior Quantitative Strategist.
@@ -334,69 +338,116 @@ async function fetchIntradayCandidate(symbol) {
 export const generateIntradayPulse = async (req, res) => {
   const resolvedSector = (req.body?.sector || 'any').toLowerCase();
   
-  let candidates;
-  try {
-    candidates = await getDynamicSymbols(resolvedSector, 10);
-  } catch (err) {
-    return res.status(503).json({ error: 'Failed to dynamically fetch intraday candidates.' });
+  // 1. Check Institutional Cache
+  const cached = pulseCache.get(resolvedSector);
+  const now = Date.now();
+  if (cached && (now - cached.timestamp < PULSE_CACHE_DURATION)) {
+    console.log(`[IntradayPulse] Serving ${resolvedSector} from institutional cache`);
+    return res.json(cached.data);
   }
 
   try {
-    const [indexSnapshots, candidateRows] = await Promise.all([
-      Promise.all(NIFTY_INDICES.map(fetchMomentum)),
-      Promise.all(candidates.map(fetchIntradayCandidate)),
-    ]);
+    const data = await fetchIntradayPulseData(resolvedSector);
+    
+    // Store in cache
+    pulseCache.set(resolvedSector, {
+      timestamp: now,
+      data
+    });
 
-    const marketPulse = {
-      niftyReturn: indexSnapshots[0]?.returnPct ?? 0,
-      bankNiftyReturn: indexSnapshots[1]?.returnPct ?? 0,
-      generatedAt: new Date().toISOString(),
-    };
-
-    const ranked = candidateRows
-      .filter(Boolean)
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 6);
-
-    const withSentiment = await Promise.all(ranked.map(async candidate => {
-      const news = await fetchStockNews(candidate.symbol).catch(() => []);
-      const headlines = news.map(n => n.title).filter(Boolean).slice(0, 8);
-      const sentiment = headlines.length ? await getNewsSentiment(headlines).catch(() => 0) : 0;
-      const adjustedScore = candidate.score + Math.round(sentiment * 20);
-      return {
-        ...candidate,
-        sentiment: parseFloat(sentiment.toFixed(2)),
-        sentimentHeadline: sentiment > 0.3 ? 'Positive buzz' : sentiment < -0.3 ? 'Negative catalyst' : 'Neutral news flow',
-        score: adjustedScore,
-        notes: [
-          `Momentum Engine: The asset shifted ${candidate.return5 >= 0 ? '+' : ''}${candidate.return5}% over 5 sessions, securing a ${candidate.return5 >= 2 ? 'dominant aggressive' : candidate.return5 >= 0 ? 'steady supportive' : 'consolidating'} trajectory.`,
-          `Volume Metric: Algorithm detects a ${((candidate.volumeSpike - 1) * 100).toFixed(1)}% deviation in liquidity vs the 10-day average. ${candidate.volumeSpike > 1.1 ? 'Institutions are actively stepping in.' : 'Volume remains standard; prepare for sudden catalyst triggers.'}`,
-          `Technical Bounds: RSI holds at ${candidate.currentRSI.toFixed(1)}/100. ${candidate.currentRSI > 80 ? 'Warning: Asset is highly overbought.' : candidate.currentRSI < 35 ? 'Deep discount identified; high probability of a mean-reversion bounce.' : 'Settled squarely in a highly favorable breakout zone.'}`,
-          `Trend Matrix: Short-term trailing overlays are heavily ${candidate.trend.toUpperCase()} against the live execution price (₹${candidate.currentPrice.toFixed(1)}).`,
-          `Live Sentiment: ${sentiment > 0.3 ? `Positive media cycle detected (+${(sentiment*100).toFixed(0)}% buzz score).` : sentiment < -0.3 ? `Negative drag detected (${(sentiment*100).toFixed(0)}%). Strict sizing recommended.` : 'News flow is fundamentally neutral.'}`
-        ],
-      };
-    }));
-
-    const picks = withSentiment
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 5)
-      .map((item, index) => ({
-        ...item,
-        rank: index + 1,
-      }));
-
-    if (picks.length === 0) {
-      return res.status(503).json({ error: 'Unable to produce intraday recommendations at this time.' });
-    }
-
-    const summary = `Intraday pulse is leaning toward ${picks.map(p => p.symbol).join(', ')}. Focus on the highest-scoring setups with positive volume momentum and keep tight risk controls reflecting the calculated trailing stop loss zones.`;
-
-    res.json({ marketPulse, summary, picks });
+    res.json(data);
   } catch (error) {
     console.error('[Intraday] Pulse generation failed:', error.message);
     res.status(500).json({ error: 'Intraday pulse generation failed. Please try again later.' });
   }
+};
+
+/**
+ * Shared logic to fetch intraday pulse data (extracted for background refresh)
+ */
+async function fetchIntradayPulseData(sector) {
+  const resolvedSector = sector.toLowerCase();
+  
+  let candidates;
+  try {
+    candidates = await getDynamicSymbols(resolvedSector, 10);
+  } catch (err) {
+    throw new Error('Failed to dynamically fetch intraday candidates.');
+  }
+
+  const [indexSnapshots, candidateRows] = await Promise.all([
+    Promise.all(NIFTY_INDICES.map(fetchMomentum)),
+    Promise.all(candidates.map(fetchIntradayCandidate)),
+  ]);
+
+  const marketPulse = {
+    niftyReturn: indexSnapshots[0]?.returnPct ?? 0,
+    bankNiftyReturn: indexSnapshots[1]?.returnPct ?? 0,
+    generatedAt: new Date().toISOString(),
+  };
+
+  const ranked = candidateRows
+    .filter(Boolean)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 6);
+
+  const withSentiment = await Promise.all(ranked.map(async candidate => {
+    const news = await fetchStockNews(candidate.symbol).catch(() => []);
+    const headlines = news.map(n => n.title).filter(Boolean).slice(0, 8);
+    const sentiment = headlines.length ? await getNewsSentiment(headlines).catch(() => 0) : 0;
+    const adjustedScore = candidate.score + Math.round(sentiment * 20);
+    return {
+      ...candidate,
+      sentiment: parseFloat(sentiment.toFixed(2)),
+      sentimentHeadline: sentiment > 0.3 ? 'Positive buzz' : sentiment < -0.3 ? 'Negative catalyst' : 'Neutral news flow',
+      score: adjustedScore,
+      notes: [
+        `Momentum Engine: The asset shifted ${candidate.return5 >= 0 ? '+' : ''}${candidate.return5}% over 5 sessions, securing a ${candidate.return5 >= 2 ? 'dominant aggressive' : candidate.return5 >= 0 ? 'steady supportive' : 'consolidating'} trajectory.`,
+        `Volume Metric: Algorithm detects a ${((candidate.volumeSpike - 1) * 100).toFixed(1)}% deviation in liquidity vs the 10-day average. ${candidate.volumeSpike > 1.1 ? 'Institutions are actively stepping in.' : 'Volume remains standard; prepare for sudden catalyst triggers.'}`,
+        `Technical Bounds: RSI holds at ${candidate.currentRSI.toFixed(1)}/100. ${candidate.currentRSI > 80 ? 'Warning: Asset is highly overbought.' : candidate.currentRSI < 35 ? 'Deep discount identified; high probability of a mean-reversion bounce.' : 'Settled squarely in a highly favorable breakout zone.'}`,
+        `Trend Matrix: Short-term trailing overlays are heavily ${candidate.trend.toUpperCase()} against the live execution price (₹${candidate.currentPrice.toFixed(1)}).`,
+        `Live Sentiment: ${sentiment > 0.3 ? `Positive media cycle detected (+${(sentiment*100).toFixed(0)}% buzz score).` : sentiment < -0.3 ? `Negative drag detected (${(sentiment*100).toFixed(0)}%). Strict sizing recommended.` : 'News flow is fundamentally neutral.'}`
+      ],
+    };
+  }));
+
+  const picks = withSentiment
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 5)
+    .map((item, index) => ({
+      ...item,
+      rank: index + 1,
+    }));
+
+  if (picks.length === 0) {
+    throw new Error('Unable to produce intraday recommendations at this time.');
+  }
+
+  const summary = `Intraday pulse is leaning toward ${picks.map(p => p.symbol).join(', ')}. Focus on the highest-scoring setups with positive volume momentum and keep tight risk controls reflecting the calculated trailing stop loss zones.`;
+
+  return { marketPulse, summary, picks };
+}
+
+/**
+ * Background Worker to refresh the Intraday Pulse cache for all sectors
+ */
+export const refreshIntradayPulseCache = async () => {
+  const sectors = ['any', 'IT', 'Banking', 'Auto', 'Energy'];
+  console.log('--- [IntradayPulse] Warming Sector Caches ---');
+  
+  for (const sector of sectors) {
+    try {
+      console.log(`[IntradayPulse] Refreshing cache for: ${sector}`);
+      const data = await fetchIntradayPulseData(sector);
+      pulseCache.set(sector.toLowerCase(), {
+        timestamp: Date.now(),
+        data
+      });
+    } catch (error) {
+      console.error(`[IntradayPulse] Refresh failed for ${sector}:`, error.message);
+    }
+  }
+  console.log('--- [IntradayPulse] Cache Warming Complete ---');
 };
 
 /**
@@ -650,36 +701,90 @@ export const customBacktestStrategy = async (req, res) => {
       return res.status(400).json({ error: 'Missing required parameters for custom backtest.' });
     }
 
-    const prompt = `
-      Persona: Senior Quantitative Analyst & Risk Manager.
-      Objective: Run a simulated historical backtest for a user's custom Indian stock market strategy.
-      
-      User Strategy Input: "${userInput}"
-      Initial Investment (T0): ₹${amount}
-      Historical Lookback Period: ${horizon} Years
-      
-      Task:
-      First, deduce the intended portfolio allocation from the user's input (assume NSE/BSE stocks).
-      Then, based on your extensive historical knowledge of these specific stocks over the last ${horizon} years, calculate what this portfolio would be worth TODAY if it had been invested ${horizon} years ago in those proportions.
-      
-      Requirements:
-      1. Provide the "parsedAllocation" as an array of objects: [{ "name": "TICKER.NS", "weight": 50, "displayName": "Company Name" }]. Ensure weights sum to 100.
-      2. Provide a realistic "historicalValue" (the final simulated amount in INR). Use integers only.
-      3. Provide the "historicalCAGR" string (e.g. "14.5%").
-      4. Provide a brief 2-3 sentence "analysis" explaining how this portfolio weathered past macro events and assessing its historical drawdown risk.
-      
-      Return ONLY a raw JSON object (no markdown):
-      {
-        "parsedAllocation": [{"name": "RELIANCE.NS", "weight": 100, "displayName": "Reliance Industries"}],
-        "historicalValue": 1200000,
-        "historicalCAGR": "14.5%",
-        "analysis": "..."
-      }
-    `;
+    const investAmount = parseFloat(amount);
+    const horizonYears = parseInt(horizon);
 
-    const rawResponse = await getAIStrategy(prompt);
-    const parsed = JSON.parse(rawResponse);
-    res.json(parsed);
+    // Step 1: Ask AI to parse the user input into structured portfolio weights
+    const parsePrompt = `
+      Extract the stock tickers and their portfolio weights from the user input.
+      Assume Indian stocks (NSE/BSE). Append .NS to NSE tickers if not provided.
+      Input: "${userInput}"
+      Return ONLY a raw JSON array without markdown formatting: [{"symbol": "RELIANCE.NS", "weight": 50, "name": "Reliance Industries"}]
+      Ensure weights sum to 100. If no weight is specified, distribute equally.
+    `;
+    const rawParsed = await getAIStrategy(parsePrompt);
+    let parsedAllocation = [];
+    try {
+        parsedAllocation = JSON.parse(rawParsed.replace(/```json|```/gi, '').trim());
+    } catch (e) {
+        return res.status(500).json({ error: 'Failed to parse strategy allocation.' });
+    }
+
+    // Step 2: Fetch actual historical data and compute exact returns
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setFullYear(endDate.getFullYear() - horizonYears);
+
+    let totalSimulatedValue = 0;
+    const finalAllocation = [];
+
+    for (const alloc of parsedAllocation) {
+        let ret = 0;
+        try {
+            const chart = await yahooFinance.chart(alloc.symbol, {
+                period1: startDate.toISOString().split('T')[0],
+                period2: endDate.toISOString().split('T')[0],
+                interval: '1mo'
+            });
+            const quotes = chart.quotes.filter(q => q.close != null);
+            if (quotes.length > 0) {
+                const first = quotes[0].close;
+                const last = quotes[quotes.length - 1].close;
+                ret = (last - first) / first;
+            }
+        } catch (e) {
+            console.warn(`[Custom Backtest] Could not fetch history for ${alloc.symbol}, assuming 0% return.`);
+        }
+        
+        const allocatedAmount = (alloc.weight / 100) * investAmount;
+        const finalAmount = allocatedAmount * (1 + ret);
+        totalSimulatedValue += finalAmount;
+        
+        finalAllocation.push({
+            name: alloc.symbol,
+            displayName: alloc.name || alloc.symbol,
+            weight: alloc.weight
+        });
+    }
+
+    // Handle edge case where totalSimulatedValue is 0 (e.g. all fetches failed)
+    if (totalSimulatedValue === 0 && finalAllocation.length > 0) {
+        totalSimulatedValue = investAmount; 
+    }
+
+    // Calculate CAGR
+    let cagr = 0;
+    if (totalSimulatedValue > 0 && investAmount > 0) {
+        cagr = (((totalSimulatedValue / investAmount) ** (1 / horizonYears)) - 1) * 100;
+    }
+
+    // Step 3: Ask AI for an analysis of the exact historical performance
+    const analysisPrompt = `
+      Persona: Senior Quantitative Analyst.
+      Write a 2-3 sentence analysis of an Indian stock portfolio that had an initial investment of ₹${investAmount} and is now worth ₹${Math.round(totalSimulatedValue)} over ${horizonYears} years (CAGR: ${cagr.toFixed(2)}%).
+      Portfolio Allocation: ${JSON.stringify(finalAllocation)}
+      Task: Briefly mention how this specific portfolio performed, assess its historical drawdown risk, and note any major drags or drivers based on the final computed CAGR.
+      Return plain text only, no markdown.
+    `;
+    const analysis = await getAIStrategy(analysisPrompt);
+
+    res.json({
+      parsedAllocation: finalAllocation,
+      historicalValue: Math.round(totalSimulatedValue),
+      historicalCAGR: `${cagr > 0 ? '+' : ''}${cagr.toFixed(2)}%`,
+      analysis: analysis.trim()
+    });
+
   } catch (error) {
     console.error('[Custom Backtest] Error:', error.message);
     res.status(500).json({ error: 'Failed to run custom strategy backtest.' });

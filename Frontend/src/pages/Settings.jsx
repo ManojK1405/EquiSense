@@ -139,6 +139,35 @@ const Settings = () => {
         }
     };
 
+    const [profileData, setProfileData] = useState({
+        name: user?.name || '',
+        email: user?.email || '',
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: ''
+    });
+
+    const handleUpdateProfile = async (e) => {
+        e.preventDefault();
+        if (profileData.newPassword && profileData.newPassword !== profileData.confirmPassword) {
+            return toast.error('New passwords do not match');
+        }
+
+        try {
+            toast.loading('Updating Identity...', { id: 'profile' });
+            const res = await api.put('/auth/profile', {
+                name: profileData.name,
+                email: profileData.email,
+                currentPassword: profileData.currentPassword,
+                newPassword: profileData.newPassword
+            });
+            toast.success('Identity Updated Successfully', { id: 'profile' });
+            setProfileData(prev => ({ ...prev, currentPassword: '', newPassword: '', confirmPassword: '' }));
+        } catch (error) {
+            toast.error(error.response?.data?.message || 'Update failed', { id: 'profile' });
+        }
+    };
+
     return (
         <div className="min-h-screen bg-[#fcfdfe] pt-32 pb-20 px-6 md:px-16 lg:px-24">
             <div className="max-w-6xl mx-auto">
@@ -158,13 +187,6 @@ const Settings = () => {
                             Identity
                         </button>
                         <button 
-                            onClick={() => setActiveTab('security')}
-                            className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl transition-all font-black text-[10px] uppercase tracking-widest ${activeTab === 'security' ? 'bg-slate-900 text-white shadow-xl shadow-slate-900/10' : 'text-slate-400 hover:bg-slate-50 hover:text-slate-900'}`}
-                        >
-                            <Shield className="w-4 h-4" />
-                            Security
-                        </button>
-                        <button 
                             onClick={() => setActiveTab('brokers')}
                             className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl transition-all font-black text-[10px] uppercase tracking-widest ${activeTab === 'brokers' ? 'bg-slate-900 text-white shadow-xl shadow-slate-900/10' : 'text-slate-400 hover:bg-slate-50 hover:text-slate-900'}`}
                         >
@@ -176,6 +198,107 @@ const Settings = () => {
                     {/* Content Area */}
                     <div className="lg:col-span-9">
                         <AnimatePresence mode="wait">
+                            {activeTab === 'profile' && (
+                                <motion.div 
+                                    initial={{ opacity: 0, x: 20 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    exit={{ opacity: 0, x: -20 }}
+                                    className="space-y-8"
+                                >
+                                    <div className="bg-white p-10 rounded-[48px] border border-slate-100 shadow-sm relative overflow-hidden">
+                                        <div className="absolute top-0 right-0 p-8">
+                                            <User className="w-12 h-12 text-rose-500 opacity-10" />
+                                        </div>
+                                        <h2 className="text-2xl font-black text-slate-900 tracking-tighter italic uppercase mb-2">Identity Matrix</h2>
+                                        <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px] mb-10">Manage your institutional credentials and access levels</p>
+
+                                        <form onSubmit={handleUpdateProfile} className="space-y-8 max-w-2xl">
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Full Name</label>
+                                                    <input 
+                                                        type="text" 
+                                                        className="w-full p-5 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-black focus:outline-none focus:border-rose-600/30 transition-all" 
+                                                        value={profileData.name}
+                                                        onChange={(e) => setProfileData({...profileData, name: e.target.value})}
+                                                    />
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Email Identifier</label>
+                                                    <input 
+                                                        type="email" 
+                                                        className="w-full p-5 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-black focus:outline-none focus:border-rose-600/30 transition-all" 
+                                                        value={profileData.email}
+                                                        onChange={(e) => setProfileData({...profileData, email: e.target.value})}
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            <div className="pt-8 border-t border-slate-50 space-y-8">
+                                                <div className="flex items-center gap-3 mb-2">
+                                                    <Shield className="w-4 h-4 text-rose-500" />
+                                                    <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest italic">Security Clearance</h3>
+                                                </div>
+
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                                    <div className="space-y-2">
+                                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Current Passcode</label>
+                                                        <input 
+                                                            type="password" 
+                                                            autoComplete="current-password"
+                                                            className="w-full p-5 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-black focus:outline-none focus:border-rose-600/30 transition-all" 
+                                                            value={profileData.currentPassword}
+                                                            onChange={(e) => setProfileData({...profileData, currentPassword: e.target.value})}
+                                                            placeholder="••••••••"
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">New Passcode</label>
+                                                        <input 
+                                                            type="password" 
+                                                            autoComplete="new-password"
+                                                            className="w-full p-5 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-black focus:outline-none focus:border-rose-600/30 transition-all" 
+                                                            value={profileData.newPassword}
+                                                            onChange={(e) => setProfileData({...profileData, newPassword: e.target.value})}
+                                                            placeholder="••••••••"
+                                                        />
+                                                    </div>
+                                                </div>
+                                                
+                                                <div className="md:w-1/2 space-y-2">
+                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Confirm New Passcode</label>
+                                                    <input 
+                                                        type="password" 
+                                                        className="w-full p-5 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-black focus:outline-none focus:border-rose-600/30 transition-all" 
+                                                        value={profileData.confirmPassword}
+                                                        onChange={(e) => setProfileData({...profileData, confirmPassword: e.target.value})}
+                                                        placeholder="••••••••"
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            <button 
+                                                type="submit"
+                                                className="px-10 py-5 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] hover:bg-rose-600 transition-all shadow-xl shadow-slate-900/10 active:scale-95"
+                                            >
+                                                Commit Changes
+                                            </button>
+                                        </form>
+                                    </div>
+
+                                    <div className="bg-slate-900 p-8 rounded-[32px] flex items-center justify-between group overflow-hidden relative">
+                                        <div className="absolute top-0 right-0 w-64 h-64 bg-rose-600/10 blur-[80px] rounded-full -mr-32 -mt-32 transition-all group-hover:bg-rose-600/20" />
+                                        <div className="relative z-10">
+                                            <h4 className="text-white font-black text-lg tracking-tight mb-1 italic">Delete Institutional Identity</h4>
+                                            <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">This action is irreversible and will purge all data.</p>
+                                        </div>
+                                        <button className="px-6 py-3 bg-rose-600/10 text-rose-500 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-rose-600 hover:text-white transition-all relative z-10">
+                                            Terminate Account
+                                        </button>
+                                    </div>
+                                </motion.div>
+                            )}
+
                             {activeTab === 'brokers' && (
                                 <motion.div 
                                     initial={{ opacity: 0, x: 20 }}
@@ -261,19 +384,6 @@ const Settings = () => {
                                             <p className="text-xs text-slate-500 leading-relaxed font-medium">EquiSense utilizes AES-256 bank-grade encryption to secure your API tokens. We never store your password or secondary authentication factors. All trade transmissions are routed through official broker-vetted SDKs.</p>
                                         </div>
                                     </div>
-                                </motion.div>
-                            )}
-
-                            {activeTab !== 'brokers' && (
-                                <motion.div 
-                                    initial={{ opacity: 0 }}
-                                    animate={{ opacity: 1 }}
-                                    className="h-64 flex flex-col items-center justify-center text-center space-y-4 bg-white rounded-[48px] border border-slate-50"
-                                >
-                                    <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center text-slate-200">
-                                        <User className="w-8 h-8" />
-                                    </div>
-                                    <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px] italic">Profile & Security controls are coming in the next release.</p>
                                 </motion.div>
                             )}
                         </AnimatePresence>

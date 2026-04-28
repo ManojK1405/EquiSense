@@ -9,7 +9,7 @@ const yahooFinance = new YahooFinance({
 // Cache for market summary to reduce API overhead
 let cachedMarketData = null;
 let lastCacheUpdate = 0;
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+const CACHE_DURATION = 20 * 60 * 1000; // 20 minutes
 
 export const getMarketSummaryData = async () => {
     // Return cached data if valid

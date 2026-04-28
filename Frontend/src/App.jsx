@@ -34,11 +34,11 @@ export default function App() {
                     <Toaster position="top-right" reverseOrder={false} />
                     <Navbar />
                     <AuthModal />
-                    <main className='min-h-screen bg-white'>
+                    <main className='min-h-screen bg-transparent'>
                         <Routes>
                             <Route path="/" element={<Home />} />
-                            <Route path="/dashboard" element={<Dashboard />} />
-                            <Route path="/portfolio" element={<Portfolio />} />
+                            <Route path="/products/dashboard" element={<Dashboard />} />
+                            <Route path="/products/portfolio" element={<Portfolio />} />
                             <Route path="/products/intraday-pulse" element={<IntradayPulse />} />
                             <Route path="/products/ai-strategist" element={<AIStrategist />} />
                             <Route path="/products/goal-backcaster" element={<ReverseStrategist />} />

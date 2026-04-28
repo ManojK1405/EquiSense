@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { History, ShieldCheck, RefreshCw } from 'lucide-react';
+import { History, ShieldCheck, RefreshCw, TrendingUp, Activity } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import api from '../api';
 import FeatureLock from '../components/feature-lock';
@@ -220,21 +220,26 @@ const Backtester = () => {
                                             <motion.div key="result" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
                                                 className="bg-white border border-slate-200 rounded-[32px] overflow-hidden shadow-2xl shadow-slate-900/5"
                                             >
-                                                {/* Dark Header */}
-                                                <div className="p-10 bg-slate-900 text-white relative overflow-hidden">
-                                                    <div className="absolute top-0 right-0 w-64 h-64 bg-rose-500/20 blur-[100px] rounded-full" />
-                                                    <div className="absolute bottom-0 left-0 w-48 h-48 bg-orange-500/20 blur-[80px] rounded-full" />
+                                                {/* Light Header */}
+                                                <div className="p-10 bg-slate-50 border-b border-slate-100 relative overflow-hidden">
+                                                    <div className="absolute top-0 right-0 w-64 h-64 bg-rose-500/5 blur-[80px] rounded-full" />
+                                                    <div className="absolute bottom-0 left-0 w-48 h-48 bg-orange-500/5 blur-[60px] rounded-full" />
                                                     <div className="relative z-10">
-                                                        <div className="flex gap-3 mb-4">
-                                                            <span className="px-3 py-1 bg-white/10 backdrop-blur-md border border-white/10 rounded-lg text-[10px] font-black text-rose-300 uppercase tracking-widest">
+                                                        <div className="flex flex-wrap gap-3 mb-6">
+                                                            <span className="px-4 py-1.5 bg-white border border-slate-200 shadow-sm rounded-lg text-[10px] font-black text-slate-600 uppercase tracking-widest flex items-center gap-1.5">
+                                                                <History className="w-3 h-3 text-slate-400" />
                                                                 {horizon}-Year Simulation
-                              </span>
-                                                            <span className="px-3 py-1 bg-white/10 backdrop-blur-md border border-white/10 rounded-lg text-[10px] font-black text-emerald-300 uppercase tracking-widest">
+                                                            </span>
+                                                            <span className="px-4 py-1.5 bg-emerald-50 border border-emerald-100 shadow-sm rounded-lg text-[10px] font-black text-emerald-600 uppercase tracking-widest flex items-center gap-1.5">
+                                                                <TrendingUp className="w-3 h-3" />
                                                                 CAGR {result.historicalCAGR}
                                                             </span>
                                                         </div>
-                                                        <h4 className="font-black text-white text-2xl tracking-tight leading-tight mb-2">Historical Performance Report</h4>
-                                                        <p className="text-slate-400 text-sm font-medium">Based on ₹{Number(amount).toLocaleString()} invested {horizon} years ago</p>
+                                                        <h4 className="font-black text-slate-900 text-3xl tracking-tighter leading-tight mb-2">Historical Performance Report</h4>
+                                                        <p className="text-slate-500 text-sm font-medium flex items-center gap-2">
+                                                            <Activity className="w-4 h-4 text-slate-400" />
+                                                            Based on ₹{Number(amount).toLocaleString()} invested {horizon} years ago
+                                                        </p>
                                                     </div>
                                                 </div>
 

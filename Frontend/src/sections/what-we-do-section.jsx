@@ -1,4 +1,5 @@
 import { ArrowRightIcon } from "lucide-react";
+import { Link } from "react-router-dom";
 
 export default function WhatWeDoSection() {
     return (
@@ -29,10 +30,12 @@ export default function WhatWeDoSection() {
                     <p>Through AI and algorithmic analysis, we aim to cut through the noise—bringing real-time data and market sentiment into one clear, actionable view. Welcome to a smarter way to invest.</p>
                 </div>
                 
-                <button className="flex items-center gap-2 mt-10 hover:bg-slate-800 transition bg-slate-900 py-4 px-10 rounded-full text-white font-bold uppercase text-[10px] tracking-widest shadow-lg shadow-slate-900/20">
+                <Link 
+                    to="/about-us"
+                    className="flex items-center gap-2 mt-10 hover:bg-slate-800 transition bg-slate-900 py-4 px-10 rounded-full text-white font-bold uppercase text-[10px] tracking-widest shadow-lg shadow-slate-900/20 w-fit">
                     <span>Explore Our Story</span>
                     <ArrowRightIcon className='size-4' />
-                </button>
+                </Link>
             </div>
         </section>
     );

@@ -124,3 +124,39 @@ export const logout = (req, res) => {
     res.clearCookie('token');
     res.json({ message: 'Logged out successfully' });
 };
+
+export const updateProfile = async (req, res) => {
+  const { name, email, currentPassword, newPassword } = req.body;
+  try {
+    const user = await prisma.user.findUnique({ where: { id: req.userId } });
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    const updateData = {};
+    if (name) updateData.name = name;
+    if (email) updateData.email = email;
+
+    if (newPassword) {
+      if (!currentPassword) {
+        return res.status(400).json({ message: 'Current password is required to set a new one.' });
+      }
+      const isPasswordCorrect = await bcrypt.compare(currentPassword, user.password);
+      if (!isPasswordCorrect) {
+        return res.status(400).json({ message: 'Incorrect current password.' });
+      }
+      updateData.password = await bcrypt.hash(newPassword, 12);
+    }
+
+    const updatedUser = await prisma.user.update({
+      where: { id: req.userId },
+      data: updateData
+    });
+
+    res.json({ 
+      message: 'Profile updated successfully',
+      user: { id: updatedUser.id, email: updatedUser.email, name: updatedUser.name }
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Failed to update profile' });
+  }
+};
