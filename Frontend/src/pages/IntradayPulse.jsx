@@ -3,6 +3,7 @@ import { Activity, TrendingUp, Zap, BarChart3, Clock, ArrowUpRight, ArrowDownRig
 import { motion, AnimatePresence } from 'framer-motion';
 import api from '../api';
 import FeatureLock from '../components/feature-lock';
+import PageHero from '../components/PageHero';
 
 const IntradayPulse = () => {
     const [pulseData, setPulseData] = useState(null);
@@ -32,52 +33,35 @@ const IntradayPulse = () => {
 
     return (
         <div className="bg-white min-h-screen font-sans selection:bg-orange-100 selection:text-orange-900">
-            {/* Premium Navigation/Hero Section */}
-            <section className="relative pt-32 pb-20 overflow-hidden bg-slate-50/50">
-                <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-orange-600/5 blur-[120px] rounded-full -mr-96 -mt-96" />
-                <div className="absolute bottom-0 left-0 w-[600px] h-[600px] bg-rose-600/5 blur-[120px] rounded-full -ml-48 -mb-48" />
-                
-                <div className="max-w-7xl mx-auto px-6 relative z-10">
-                    <div className="flex flex-col items-center text-center">
-                        <motion.div 
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className="inline-flex items-center gap-2 px-6 py-2 rounded-full bg-orange-50 text-orange-600 font-black text-[10px] uppercase tracking-[0.3em] mb-8 border border-orange-100 shadow-sm"
+            <PageHero
+                variant="gradient-bold"
+                badge={{ icon: Activity, label: 'Live Momentum Core', live: true }}
+                title="Intraday"
+                titleAccent="Pulse"
+                subtitle="High-frequency quantitative analysis of the Indian equity markets. Identifying institutional breakouts in real-time."
+                accentColor="orange"
+                stats={[
+                    { label: 'Scan Frequency', value: '15min' },
+                    { label: 'Markets', value: 'NSE / BSE' },
+                    { label: 'Model', value: 'Quant AI' },
+                ]}
+            >
+                <div className="flex flex-wrap gap-3 mt-2">
+                    {['any', 'IT', 'Banking', 'Auto', 'Energy'].map((s) => (
+                        <button
+                            key={s}
+                            onClick={() => setActiveSector(s)}
+                            className={`px-7 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                                activeSector === s
+                                    ? 'bg-slate-900 text-white shadow-xl shadow-slate-900/20'
+                                    : 'bg-white/80 text-slate-500 border border-slate-200 hover:border-orange-300 hover:text-orange-600'
+                            }`}
                         >
-                            <span className="relative flex h-2 w-2">
-                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75"></span>
-                                <span className="relative inline-flex rounded-full h-2 w-2 bg-orange-600"></span>
-                            </span>
-                            Live Momentum Core
-                        </motion.div>
-                        
-                        <h1 className="text-6xl md:text-8xl font-black text-slate-900 tracking-tighter mb-8 pb-2 leading-tight">
-                            Intraday <span className="text-premium">Pulse</span>
-                        </h1>
-                        
-                        <p className="text-xl text-slate-500 max-w-2xl mx-auto leading-relaxed font-medium mb-12">
-                            High-frequency quantitative analysis of the Indian equity markets. 
-                            Identifying institutional breakouts in real-time.
-                        </p>
-
-                        <div className="flex flex-wrap justify-center gap-4">
-                            {['any', 'IT', 'Banking', 'Auto', 'Energy'].map((s) => (
-                                <button 
-                                    key={s}
-                                    onClick={() => setActiveSector(s)}
-                                    className={`px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                                        activeSector === s 
-                                        ? 'bg-slate-900 text-white shadow-xl shadow-slate-900/20' 
-                                        : 'bg-white text-slate-400 border border-slate-100 hover:border-orange-200 hover:text-orange-600'
-                                    }`}
-                                >
-                                    {s}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
+                            {s === 'any' ? 'All Sectors' : s}
+                        </button>
+                    ))}
                 </div>
-            </section>
+            </PageHero>
 
             {/* Locked Content */}
             <FeatureLock featureName="Live Momentum" description="Unlock real-time institutional signals and deep quant logic analysis.">

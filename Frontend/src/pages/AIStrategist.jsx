@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Brain, Sparkles, Zap, TrendingUp, ShieldCheck, Layers, Share2, Download, RefreshCw, Save, History, PlayCircle, ShieldAlert, Trash2, ArrowRight } from 'lucide-react';
+import { Brain, Sparkles, Zap, TrendingUp, ShieldCheck, BarChart2, Layers, Share2, Download, RefreshCw, Save, History, PlayCircle, ShieldAlert, Trash2, ArrowRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import api from '../api';
 import FeatureLock from '../components/feature-lock';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'react-hot-toast';
+import PageHero from '../components/PageHero';
 
 const formatINR = (val) => {
     if (val >= 10000000) return `₹${(val / 10000000).toFixed(2)} Cr`;
@@ -143,12 +144,20 @@ const AIStrategist = () => {
 
     return (
         <div className="bg-white min-h-screen font-sans selection:bg-rose-100 selection:text-rose-900 relative">
-            {/* Background */}
-            <div className="fixed inset-0 pointer-events-none">
-                <div className="absolute top-0 right-0 w-[1000px] h-[1000px] bg-rose-500/5 blur-[150px] rounded-full -mr-96 -mt-96" />
-                <div className="absolute bottom-0 left-0 w-[800px] h-[800px] bg-orange-500/5 blur-[150px] rounded-full -ml-48 -mb-48" />
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]" />
-            </div>
+            <PageHero
+                variant="gradient-bold"
+                badge={{ icon: Brain, label: 'Institutional Strategy Engine' }}
+                title="AI"
+                titleAccent="Strategist"
+                subtitle="Configure your investment mandate in seconds. Our AI generates a personalized, institutional-grade portfolio blueprint with full backtest simulation."
+                accentColor="fuchsia"
+                stats={[
+                    { label: 'Risk Profiles', value: '3 Tiers' },
+                    { label: 'Horizon Range', value: '1–20Y' },
+                    { label: 'Sectors', value: '6+' },
+                    { label: 'Execution', value: 'Mock + Live' },
+                ]}
+            />
 
             {/* Confirmation Modal */}
             <AnimatePresence>
@@ -235,144 +244,169 @@ const AIStrategist = () => {
                 )}
             </AnimatePresence>
 
-            <div className="max-w-7xl mx-auto px-6 pt-32 pb-24 relative z-10">
+            <div className="max-w-7xl mx-auto px-6 pt-8 pb-24 relative z-10">
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-16 items-start">
 
                     {/* ── Left Column: Mandate ── */}
-                    <div className="lg:col-span-5 space-y-10">
-                        <motion.div initial={{ opacity: 0, x: -30 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.8 }}>
+                    <div className="lg:col-span-5 space-y-5">
+                        <motion.div initial={{ opacity: 0, x: -30 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.7 }}>
 
-                            <div className="inline-flex items-center gap-3 px-5 py-2 rounded-full bg-slate-900 text-white font-black text-[9px] uppercase tracking-[0.3em] mb-10 border border-slate-800 shadow-2xl">
-                                <Sparkles className="w-3 h-3 text-rose-400" />
-                                Institutional Mandate Setup
-                            </div>
-
-                            <h1 className="text-5xl font-black text-slate-900 tracking-tighter leading-tight mb-8 pb-2">
-                                AI <span className="text-premium italic">Strategist</span>
-                            </h1>
-
-                            {/* Tabs */}
-                            <div className="flex bg-slate-100 p-1.5 rounded-[24px] mb-10 border border-slate-200/50">
-                                <button 
+                            {/* Tab switcher */}
+                            <div className="flex bg-slate-100 p-1 rounded-2xl border border-slate-200/60 mb-5">
+                                <button
                                     onClick={() => setActiveTab('generate')}
-                                    className={`flex-1 flex items-center justify-center gap-3 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'generate' ? 'bg-white text-slate-900 shadow-xl' : 'text-slate-400 hover:text-slate-600'}`}
+                                    className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'generate' ? 'bg-white text-slate-900 shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
                                 >
-                                    <Sparkles className="w-4 h-4" />
+                                    <Sparkles className="w-3.5 h-3.5" />
                                     Generate New
                                 </button>
-                                <button 
+                                <button
                                     onClick={() => setActiveTab('saved')}
-                                    className={`flex-1 flex items-center justify-center gap-3 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'saved' ? 'bg-white text-slate-900 shadow-xl' : 'text-slate-400 hover:text-slate-600'}`}
+                                    className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'saved' ? 'bg-white text-slate-900 shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
                                 >
-                                    <History className="w-4 h-4" />
+                                    <History className="w-3.5 h-3.5" />
                                     Saved Vault
                                 </button>
                             </div>
 
                             {activeTab === 'generate' ? (
                                 <>
-                                    {/* Mandate Form */}
-                            <div className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-xl space-y-8 relative overflow-hidden">
-                                <div className="absolute top-0 right-0 w-32 h-32 bg-rose-50/50 blur-3xl rounded-full -mr-16 -mt-16" />
+                                    {/* Mandate Form Card */}
+                                    <div className="bg-white rounded-[32px] border border-slate-100 shadow-xl overflow-hidden">
+                                        <div className="h-1 bg-gradient-to-r from-fuchsia-500 via-violet-500 to-purple-600" />
+                                        <div className="p-8 space-y-6">
 
-                                {/* Capital */}
-                                <div className="space-y-4 relative z-10">
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Capital Commitment (₹)</label>
-                                    <div className="relative">
-                                        <input
-                                            type="number"
-                                            placeholder="e.g. 500000"
-                                            className="w-full p-5 bg-slate-50 border border-slate-100 rounded-2xl font-black text-xl text-slate-900 focus:outline-none focus:border-rose-400 focus:ring-4 focus:ring-rose-500/5 transition-all"
-                                            value={mandate.amount}
-                                            onChange={(e) => setMandate({ ...mandate, amount: e.target.value })}
-                                        />
-                                        <div className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-300 font-black">INR</div>
-                                    </div>
-                                </div>
+                                            {/* Capital */}
+                                            <div className="space-y-2">
+                                                <label className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                                    <span className="w-5 h-5 rounded-lg bg-fuchsia-50 text-fuchsia-600 flex items-center justify-center text-[9px] font-black">1</span>
+                                                    Capital Commitment
+                                                </label>
+                                                <div className="relative">
+                                                    <span className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 font-black text-lg">₹</span>
+                                                    <input
+                                                        type="number"
+                                                        placeholder="e.g. 500000"
+                                                        className="w-full pl-10 pr-16 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-black text-xl text-slate-900 focus:outline-none focus:border-fuchsia-400 focus:ring-4 focus:ring-fuchsia-500/8 transition-all"
+                                                        value={mandate.amount}
+                                                        onChange={(e) => setMandate({ ...mandate, amount: e.target.value })}
+                                                    />
+                                                    <span className="absolute right-5 top-1/2 -translate-y-1/2 text-[9px] font-black text-slate-300 uppercase tracking-widest">INR</span>
+                                                </div>
+                                            </div>
 
-                                {/* Risk */}
-                                <div className="space-y-4 relative z-10">
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Risk Appetite</label>
-                                    <div className="grid grid-cols-3 gap-3">
-                                        {['conservative', 'moderate', 'aggressive'].map((r) => (
+                                            {/* Risk */}
+                                            <div className="space-y-2">
+                                                <label className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                                    <span className="w-5 h-5 rounded-lg bg-fuchsia-50 text-fuchsia-600 flex items-center justify-center text-[9px] font-black">2</span>
+                                                    Risk Appetite
+                                                </label>
+                                                <div className="grid grid-cols-3 gap-2">
+                                                    <button
+                                                        onClick={() => setMandate({ ...mandate, riskLevel: 'conservative' })}
+                                                        className={`py-3 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all ${mandate.riskLevel === 'conservative' ? 'bg-emerald-600 text-white border-emerald-600 shadow-lg' : 'bg-white text-slate-400 border-slate-200 hover:border-fuchsia-200'}`}
+                                                    >
+                                                        Conservative
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setMandate({ ...mandate, riskLevel: 'moderate' })}
+                                                        className={`py-3 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all ${mandate.riskLevel === 'moderate' ? 'bg-amber-500 text-white border-amber-500 shadow-lg' : 'bg-white text-slate-400 border-slate-200 hover:border-fuchsia-200'}`}
+                                                    >
+                                                        Moderate
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setMandate({ ...mandate, riskLevel: 'aggressive' })}
+                                                        className={`py-3 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all ${mandate.riskLevel === 'aggressive' ? 'bg-rose-600 text-white border-rose-600 shadow-lg' : 'bg-white text-slate-400 border-slate-200 hover:border-fuchsia-200'}`}
+                                                    >
+                                                        Aggressive
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            {/* Horizon */}
+                                            <div className="space-y-3">
+                                                <div className="flex items-center gap-2 justify-between">
+                                                    <label className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                                        <span className="w-5 h-5 rounded-lg bg-fuchsia-50 text-fuchsia-600 flex items-center justify-center text-[9px] font-black">3</span>
+                                                        Time Horizon
+                                                    </label>
+                                                    <span className="px-3 py-1 bg-fuchsia-600 text-white text-xs font-black rounded-lg">{mandate.horizon}Y</span>
+                                                </div>
+                                                <input
+                                                    type="range" min="1" max="20" step="1"
+                                                    className="w-full h-1.5 bg-slate-100 rounded-full appearance-none cursor-pointer accent-fuchsia-600"
+                                                    value={mandate.horizon}
+                                                    onChange={(e) => setMandate({ ...mandate, horizon: e.target.value })}
+                                                />
+                                                <div className="flex justify-between text-[9px] font-black text-slate-300 uppercase tracking-widest">
+                                                    <span>1Y</span><span>5Y</span><span>10Y</span><span>15Y</span><span>20Y</span>
+                                                </div>
+                                            </div>
+
+                                            {/* Sectors */}
+                                            <div className="space-y-2">
+                                                <label className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                                    <span className="w-5 h-5 rounded-lg bg-fuchsia-50 text-fuchsia-600 flex items-center justify-center text-[9px] font-black">4</span>
+                                                    Sector Bias
+                                                </label>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {[
+                                                        { id: 'any',     label: 'Diversified' },
+                                                        { id: 'IT',      label: 'Tech & SaaS' },
+                                                        { id: 'Banking', label: 'Banking'     },
+                                                        { id: 'Auto',    label: 'Automotive'  },
+                                                        { id: 'Energy',  label: 'Energy'      },
+                                                        { id: 'Pharma',  label: 'Pharma'      },
+                                                    ].map((s) => (
+                                                        <button
+                                                            key={s.id}
+                                                            onClick={() => {
+                                                                if (s.id === 'any') {
+                                                                    setMandate({ ...mandate, sectors: ['any'] });
+                                                                } else {
+                                                                    const current = mandate.sectors.filter(x => x !== 'any');
+                                                                    const next = current.includes(s.id) ? current.filter(x => x !== s.id) : [...current, s.id];
+                                                                    setMandate({ ...mandate, sectors: next.length ? next : ['any'] });
+                                                                }
+                                                            }}
+                                                            className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all ${mandate.sectors.includes(s.id)
+                                                                ? 'bg-fuchsia-600 text-white border-fuchsia-600 shadow-md shadow-fuchsia-900/10'
+                                                                : 'bg-white text-slate-400 border-slate-200 hover:border-fuchsia-300 hover:text-fuchsia-600'}`}
+                                                        >
+                                                            {s.label}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            {/* CTA */}
                                             <button
-                                                key={r}
-                                                onClick={() => setMandate({ ...mandate, riskLevel: r })}
-                                                className={`py-3 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all ${mandate.riskLevel === r
-                                                    ? 'bg-slate-900 text-white border-slate-900 shadow-lg'
-                                                    : 'bg-white text-slate-400 border-slate-100 hover:border-rose-200'}`}
+                                                onClick={generateFullPlan}
+                                                disabled={loading}
+                                                className="w-full py-4 bg-gradient-to-r from-fuchsia-600 to-violet-600 rounded-2xl text-white font-black text-[11px] uppercase tracking-[0.2em] shadow-xl shadow-fuchsia-900/20 hover:shadow-fuchsia-600/30 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3 disabled:opacity-40 disabled:cursor-not-allowed"
                                             >
-                                                {r}
+                                                {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4 fill-current" />}
+                                                {loading ? 'Architecting Blueprint...' : 'Generate Investment Plan'}
                                             </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Capability chips */}
+                                    <div className="grid grid-cols-2 gap-3">
+                                        {[
+                                            { icon: Brain,      label: 'AI Portfolio Design',  color: 'fuchsia' },
+                                            { icon: ShieldCheck,label: 'Risk-Adjusted Returns', color: 'violet'  },
+                                            { icon: BarChart2,  label: 'Backtest Simulation',   color: 'indigo'  },
+                                            { icon: Zap,        label: 'One-Click Execution',   color: 'rose'    },
+                                        ].map(({ icon: Icon, label, color }) => (
+                                            <div key={label} className="flex items-center gap-3 p-4 bg-white rounded-2xl border border-slate-100 shadow-sm">
+                                                <div className={`w-8 h-8 rounded-xl bg-${color}-50 text-${color}-600 flex items-center justify-center shrink-0`}>
+                                                    <Icon className="w-4 h-4" />
+                                                </div>
+                                                <span className="text-[11px] font-black text-slate-700 leading-tight">{label}</span>
+                                            </div>
                                         ))}
                                     </div>
-                                </div>
-
-                                {/* Horizon & Sector */}
-                                <div className="space-y-8 relative z-10">
-                                    <div className="space-y-5">
-                                        <div className="flex justify-between items-center px-1">
-                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Time Horizon</label>
-                                            <span className="text-sm font-black text-rose-600 bg-rose-50 px-3 py-1 rounded-lg border border-rose-100">
-                                                {mandate.horizon} Year{mandate.horizon > 1 ? 's' : ''}
-                                            </span>
-                                        </div>
-                                        <input
-                                            type="range" min="1" max="20" step="1"
-                                            className="w-full h-2 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-rose-500"
-                                            value={mandate.horizon}
-                                            onChange={(e) => setMandate({ ...mandate, horizon: e.target.value })}
-                                        />
-                                        <div className="flex justify-between text-[9px] font-black text-slate-300 uppercase tracking-widest px-1">
-                                            <span>Short Term</span>
-                                            <span>Institutional Hold</span>
-                                        </div>
-                                    </div>
-
-                                    <div className="space-y-4">
-                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Sector Bias (Multi-Select)</label>
-                                        <div className="flex flex-wrap gap-2">
-                                            {[
-                                                { id: 'any', label: 'Diversified' },
-                                                { id: 'IT', label: 'Tech & SaaS' },
-                                                { id: 'Banking', label: 'Banking' },
-                                                { id: 'Auto', label: 'Automotive' },
-                                                { id: 'Energy', label: 'Energy' },
-                                                { id: 'Pharma', label: 'Pharma' }
-                                            ].map((s) => (
-                                                <button
-                                                    key={s.id}
-                                                    onClick={() => {
-                                                        if (s.id === 'any') {
-                                                            setMandate({ ...mandate, sectors: ['any'] });
-                                                        } else {
-                                                            const current = mandate.sectors.filter(x => x !== 'any');
-                                                            const next = current.includes(s.id)
-                                                                ? current.filter(x => x !== s.id)
-                                                                : [...current, s.id];
-                                                            setMandate({ ...mandate, sectors: next.length ? next : ['any'] });
-                                                        }
-                                                    }}
-                                                    className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all ${mandate.sectors.includes(s.id)
-                                                        ? 'bg-rose-500 text-white border-rose-500 shadow-lg shadow-rose-900/10'
-                                                        : 'bg-white text-slate-400 border-slate-100 hover:border-rose-200 hover:text-rose-600'}`}
-                                                >
-                                                    {s.label}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <button
-                                    onClick={generateFullPlan}
-                                    disabled={loading}
-                                    className="w-full py-5 bg-gradient-to-r from-rose-500 to-orange-500 rounded-2xl text-white font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-rose-900/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3 disabled:opacity-60"
-                                >
-                                    {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4 fill-current" />}
-                                    {loading ? 'Architecting...' : 'Generate Plan'}
-                                </button>
-                            </div>
                                 </>
                             ) : (
                                 <div className="space-y-6">

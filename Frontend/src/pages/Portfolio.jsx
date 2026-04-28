@@ -486,107 +486,71 @@ const Portfolio = () => {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, ease: "easeOut" }}
-            className="bg-transparent min-h-screen p-6 md:p-12 pb-32"
+            className="bg-transparent min-h-screen pb-32"
         >
-            <div className="max-w-7xl mx-auto">
-                <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-16 gap-8">
-                    <div className="space-y-1">
-                        <div className="flex items-center gap-3">
-                            <div className="bg-orange-600 p-2 rounded-xl text-white shadow-lg shadow-orange-600/20">
-                                <Briefcase className="w-6 h-6" />
-                            </div>
-                            <h1 className="text-4xl font-black text-slate-900 tracking-tighter italic uppercase underline decoration-orange-600 decoration-4 underline-offset-8">
-                                Portfolio <span className="text-premium">Hub</span>
-                            </h1>
+            {/* ── Premium Control Bar ── */}
+            <div className="sticky top-16 z-30 bg-white/90 backdrop-blur-xl border-b border-slate-200/60 shadow-sm">
+                {/* Accent bar */}
+                <div className="h-0.5 w-full bg-gradient-to-r from-rose-500 via-orange-400 to-transparent" />
+                <div className="max-w-7xl mx-auto px-6 md:px-12 py-3 flex items-center justify-between gap-4 flex-wrap">
+                    {/* Identity */}
+                    <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 bg-gradient-to-br from-rose-500 to-orange-500 rounded-xl flex items-center justify-center shadow shadow-orange-500/25">
+                            <Briefcase className="w-4 h-4 text-white" />
                         </div>
-                        <p className="text-slate-500 font-bold uppercase tracking-widest text-[10px] pl-1">Institutional Wealth Terminal</p>
+                        <div>
+                            <h1 className="text-base font-black text-slate-900 tracking-tighter leading-none">Portfolio <span className="text-premium italic">Hub</span></h1>
+                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.18em] mt-0.5">Institutional Wealth Terminal</p>
+                        </div>
                     </div>
 
-                    <div className="flex items-center justify-end gap-3 flex-nowrap">
-                        <div className="flex bg-slate-100 p-1.5 rounded-2xl border border-slate-200 shrink-0">
-                            <button 
-                                onClick={() => {
-                                    if (mode === 'live') setShowModeConfirm(true);
-                                }}
-                                className={`px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${mode === 'mock' ? 'bg-white text-orange-600 shadow-sm' : 'text-slate-400 hover:text-slate-900'}`}
-                            >
-                                Mock Deck
+                    {/* Centre: Mode + Broker */}
+                    <div className="flex items-center gap-2">
+                        <div className="flex bg-slate-100 p-0.5 rounded-xl border border-slate-200/80">
+                            <button onClick={() => { if (mode === 'live') setShowModeConfirm(true); }}
+                                className={`px-4 py-1.5 rounded-[10px] font-black text-[9px] uppercase tracking-widest transition-all ${mode === 'mock' ? 'bg-white text-orange-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>
+                                Mock
                             </button>
-                            <button 
-                                disabled={!user?.brokerApiKey}
-                                onClick={() => {
-                                    if (mode === 'mock') setShowModeConfirm(true);
-                                }}
-                                className={`px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${mode === 'live' ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-900'} ${!user?.brokerApiKey ? 'opacity-40 cursor-not-allowed grayscale' : ''}`}
-                            >
-                                Live Sync
+                            <button disabled={!user?.brokerApiKey} onClick={() => { if (mode === 'mock') setShowModeConfirm(true); }}
+                                className={`px-4 py-1.5 rounded-[10px] font-black text-[9px] uppercase tracking-widest transition-all ${mode === 'live' ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:text-slate-600'} ${!user?.brokerApiKey ? 'opacity-40 cursor-not-allowed' : ''}`}>
+                                Live
                             </button>
                         </div>
-
                         {mode === 'live' && (
-                            <div className="flex items-center gap-3 bg-white px-5 py-2 rounded-2xl border border-slate-200 shadow-sm shrink-0">
-                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Broker:</span>
-                                <select 
-                                    value={selectedBroker}
-                                    onChange={(e) => setSelectedBroker(e.target.value)}
-                                    className="bg-transparent text-[10px] font-black text-slate-900 uppercase tracking-widest focus:outline-none cursor-pointer"
-                                >
-                                    <option value="zerodha">Zerodha Kite</option>
-                                    <option value="groww">Groww</option>
-                                    <option value="dhan">Dhan</option>
-                                </select>
-                            </div>
+                            <select value={selectedBroker} onChange={(e) => setSelectedBroker(e.target.value)}
+                                className="bg-white border border-slate-200 text-[9px] font-black text-slate-700 uppercase tracking-widest px-3 py-2 rounded-xl focus:outline-none cursor-pointer shadow-sm">
+                                <option value="zerodha">Zerodha</option>
+                                <option value="groww">Groww</option>
+                                <option value="dhan">Dhan</option>
+                            </select>
                         )}
+                    </div>
 
-                        <div className={`flex items-center gap-3 px-5 py-3.5 rounded-[24px] border transition-all shadow-sm shrink-0 ${marketOpen ? 'bg-emerald-50 border-emerald-100' : 'bg-amber-50 border-amber-100'}`}>
-                            <div className={`w-3 h-3 rounded-full ${marketOpen ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
-                            <div className="flex flex-col">
-                                <span className={`text-[10px] font-black uppercase tracking-widest ${marketOpen ? 'text-emerald-600' : 'text-amber-600'}`}>
-                                    Market {marketOpen ? 'Open' : 'Closed'}
-                                </span>
-                                <span className="text-[8px] font-black text-slate-400 uppercase tracking-[0.2em]">IST 09:15 - 15:30</span>
-                            </div>
+                    {/* Right: Funds + Market + AI */}
+                    <div className="flex items-center gap-2">
+                        <div className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[9px] font-black uppercase tracking-widest ${marketOpen ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-slate-100 border-slate-200 text-slate-500'}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${marketOpen ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
+                            {marketOpen ? 'Open' : 'Closed'}
                         </div>
-
-                        <div className="bg-white border border-slate-200 px-6 py-3.5 rounded-[24px] shadow-sm flex flex-col justify-center min-w-[180px] shrink-0">
-                            <p className="text-[10px] uppercase font-black text-slate-400 tracking-widest mb-1 flex items-center gap-2">
-                                <Wallet className="w-3 h-3 text-orange-600" />
-                                Available Funds
-                            </p>
-                            <div className="flex items-center justify-between gap-3">
-                                <div className="flex flex-col">
-                                    <p className="text-xl font-black text-slate-900 tracking-tight">₹{mockBalance.toLocaleString()}</p>
-                                    {mode === 'mock' && settlementBalance > 0 && (
-                                        <p className="text-[7px] font-black text-rose-500 uppercase tracking-widest mt-0.5">
-                                            ₹{settlementBalance.toLocaleString()} Blocked (T+1)
-                                        </p>
-                                    )}
-                                </div>
-                                {mode === 'mock' && (
-                                    <button onClick={() => setShowTopUpModal(true)} className="p-1.5 bg-orange-50 hover:bg-orange-600 hover:text-white rounded-full text-orange-600 transition-all active:scale-90 shadow-sm">
-                                        <Plus className="w-3 h-3" />
-                                    </button>
-                                )}
-                            </div>
+                        <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-full">
+                            <Wallet className="w-3.5 h-3.5 text-orange-500" />
+                            <span className="text-sm font-black text-slate-900">₹{mockBalance.toLocaleString()}</span>
+                            {mode === 'mock' && (
+                                <button onClick={() => setShowTopUpModal(true)} className="w-4 h-4 bg-orange-500 hover:bg-orange-600 rounded-full flex items-center justify-center text-white transition-all active:scale-90">
+                                    <Plus className="w-2.5 h-2.5" />
+                                </button>
+                            )}
                         </div>
-
-                        <button 
-                            onClick={toggleAI}
-                            className={`px-8 py-3.5 rounded-[24px] font-black text-[10px] uppercase tracking-[0.2em] transition-all flex items-center gap-4 shadow-xl active:scale-95 shrink-0 ${autoPilot ? 'bg-orange-600 text-white shadow-orange-500/30' : 'bg-slate-900 text-white shadow-slate-900/30'}`}
-                        >
-                            <div className={`p-1 rounded-full ${autoPilot ? 'bg-white text-orange-600 animate-pulse shadow-inner' : 'bg-orange-600 text-white'}`}>
-                                <Zap className="w-4 h-4 fill-current" />
-                            </div>
-                            <div className="text-left">
-                                <p className="leading-none mb-1">{autoPilot ? 'AI Pilot Engaged' : 'Engage EquiTrade'}</p>
-                                {autoPilot && (mode === 'live' ? user?.pilotLimitLive : user?.pilotLimitMock) && (
-                                    <p className="text-[8px] opacity-60 font-bold uppercase tracking-widest italic">Limit: ₹{(mode === 'live' ? user.pilotLimitLive : user.pilotLimitMock).toLocaleString()}</p>
-                                )}
-                            </div>
+                        <button onClick={toggleAI}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-xl font-black text-[9px] uppercase tracking-widest transition-all shadow active:scale-95 ${autoPilot ? 'bg-gradient-to-r from-rose-500 to-orange-500 text-white shadow-orange-500/20' : 'bg-slate-900 text-white hover:bg-slate-700'}`}>
+                            <Zap className={`w-3 h-3 fill-current ${autoPilot ? 'animate-pulse' : ''}`} />
+                            {autoPilot ? 'AI Active' : 'EquiTrade'}
                         </button>
                     </div>
-                </header>
+                </div>
+            </div>
 
+            <div className="max-w-7xl mx-auto px-6 md:px-12 pt-10">
                 <FeatureLock featureName="Portfolio Hub" description="Unlock real-time portfolio tracking, AI risk analysis, and multi-broker execution.">
                     <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
                         {/* Main Content Area */}
@@ -595,152 +559,161 @@ const Portfolio = () => {
                                 <PortfolioSkeleton />
                             ) : (
                                 <>
-                                    {/* Performance Overview */}
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                        <div className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm">
-                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-2">
-                                                <TrendingUp className="w-3 h-3 text-emerald-500" />
-                                                Total AUM
-                                            </p>
-                                            <p className="text-3xl font-black text-slate-900">₹{(mockBalance + totalCurrent).toLocaleString()}</p>
-                                            <p className="text-[10px] font-bold text-slate-400 mt-2">Vault + Market Value</p>
+                                    {/* Performance KPIs */}
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+                                            <div className="h-1 bg-gradient-to-r from-indigo-500 to-violet-500" />
+                                            <div className="p-6">
+                                                <div className="flex items-center gap-2 mb-3">
+                                                    <div className="w-7 h-7 rounded-xl bg-indigo-50 flex items-center justify-center">
+                                                        <TrendingUp className="w-3.5 h-3.5 text-indigo-600" />
+                                                    </div>
+                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Total AUM</p>
+                                                </div>
+                                                <p className="text-2xl font-black text-slate-900 tracking-tight">₹{(mockBalance + totalCurrent).toLocaleString()}</p>
+                                                <p className="text-[9px] font-bold text-slate-400 mt-1.5">Vault + Market Value</p>
+                                            </div>
                                         </div>
-                                        <div className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm">
-                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-2">
-                                                <ArrowUpRight className="w-3 h-3 text-emerald-500" />
-                                                Net Unrealized P&L
-                                            </p>
-                                            <p className={`text-3xl font-black ${totalPnL >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                                                {totalPnL >= 0 ? '+' : '-'}₹{Math.abs(totalPnL).toLocaleString()}
-                                            </p>
-                                            <p className={`text-[10px] font-bold mt-2 ${totalPnL >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>{totalPnLPercent.toFixed(2)}% ROI</p>
+                                        <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+                                            <div className={`h-1 ${totalPnL >= 0 ? 'bg-gradient-to-r from-emerald-400 to-teal-400' : 'bg-gradient-to-r from-rose-400 to-red-400'}`} />
+                                            <div className="p-6">
+                                                <div className="flex items-center gap-2 mb-3">
+                                                    <div className={`w-7 h-7 rounded-xl flex items-center justify-center ${totalPnL >= 0 ? 'bg-emerald-50' : 'bg-rose-50'}`}>
+                                                        {totalPnL >= 0 ? <ArrowUpRight className="w-3.5 h-3.5 text-emerald-600" /> : <ArrowDownRight className="w-3.5 h-3.5 text-rose-600" />}
+                                                    </div>
+                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Net P&L</p>
+                                                </div>
+                                                <p className={`text-2xl font-black tracking-tight ${totalPnL >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                                    {totalPnL >= 0 ? '+' : '-'}₹{Math.abs(totalPnL).toLocaleString()}
+                                                </p>
+                                                <p className={`text-[9px] font-bold mt-1.5 ${totalPnL >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>{totalPnLPercent.toFixed(2)}% ROI</p>
+                                            </div>
                                         </div>
-                                        <div className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm">
-                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-2">
-                                                <Target className="w-3 h-3 text-orange-500" />
-                                                Capital Deployed
-                                            </p>
-                                            <p className="text-3xl font-black text-slate-900">₹{totalInvested.toLocaleString()}</p>
-                                            <p className="text-[10px] font-bold text-slate-400 mt-2">{((totalInvested/(mockBalance + totalInvested))*100).toFixed(1)}% Allocation</p>
+                                        <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+                                            <div className="h-1 bg-gradient-to-r from-orange-400 to-amber-400" />
+                                            <div className="p-6">
+                                                <div className="flex items-center gap-2 mb-3">
+                                                    <div className="w-7 h-7 rounded-xl bg-orange-50 flex items-center justify-center">
+                                                        <Target className="w-3.5 h-3.5 text-orange-600" />
+                                                    </div>
+                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Deployed</p>
+                                                </div>
+                                                <p className="text-2xl font-black text-slate-900 tracking-tight">₹{totalInvested.toLocaleString()}</p>
+                                                <p className="text-[9px] font-bold text-slate-400 mt-1.5">{((totalInvested / (mockBalance + totalInvested || 1)) * 100).toFixed(1)}% Allocation</p>
+                                            </div>
                                         </div>
                                     </div>
 
                                     {/* Holdings Table */}
-                                    <div className="bg-white rounded-[40px] border border-slate-100 shadow-[0_4px_20px_rgb(0,0,0,0.02)] overflow-hidden">
-                                        <div className="p-8 md:p-10 border-b border-slate-50 flex flex-col md:flex-row justify-between items-center gap-6">
-                                            <div className="flex items-center gap-8">
-                                                <div className="flex items-center gap-5">
-                                                    <div className="p-4 bg-orange-50 rounded-2xl text-orange-600">
-                                                        <LayoutDashboard className="w-6 h-6" />
+                                    <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+                                        <div className="h-0.5 bg-gradient-to-r from-rose-500 via-orange-400 to-transparent" />
+                                        <div className="px-6 pt-5 pb-0 border-b border-slate-50">
+                                            {/* Row 1: Title + CTA */}
+                                            <div className="flex items-center justify-between mb-4">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-7 h-7 bg-gradient-to-br from-rose-50 to-orange-50 rounded-xl flex items-center justify-center border border-orange-100/50">
+                                                        <LayoutDashboard className="w-3.5 h-3.5 text-orange-600" />
                                                     </div>
                                                     <div>
-                                                        <h2 className="text-2xl font-black text-slate-900 italic tracking-tight uppercase">EquiSense Vault</h2>
-                                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Managed Assets</p>
+                                                        <h2 className="text-sm font-black text-slate-900 tracking-tight leading-none">EquiSense Vault</h2>
+                                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-0.5">Managed Assets</p>
                                                     </div>
                                                 </div>
-                                                <div className="h-10 w-[1px] bg-slate-100 hidden md:block" />
-                                                <div className="flex bg-slate-50 p-1 rounded-2xl">
-                                                    <button 
-                                                        onClick={() => setActiveTab('portfolio')}
-                                                        className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'portfolio' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
-                                                    >
-                                                        Portfolio
-                                                    </button>
-                                                    <button 
-                                                        onClick={() => setActiveTab('analysis')}
-                                                        className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'analysis' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
-                                                    >
-                                                        Analysis
-                                                    </button>
-                                                    <button 
-                                                        onClick={() => setActiveTab('orders')}
-                                                        className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'orders' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
-                                                    >
-                                                        Orders
-                                                    </button>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-center gap-4">
+
                                                 {activeTab === 'portfolio' && (
-                                                    <button 
+                                                    <button
                                                         onClick={() => setShowAddModal(true)}
-                                                        className="flex items-center gap-3 px-8 py-3 bg-slate-900 text-white rounded-full text-[10px] font-black uppercase tracking-widest hover:bg-orange-600 hover:shadow-xl hover:shadow-orange-600/20 transition-all active:scale-95 shadow-lg"
+                                                        className="flex items-center gap-1.5 px-4 py-2 bg-slate-900 text-white rounded-full text-[9px] font-black uppercase tracking-widest hover:bg-orange-600 hover:shadow-lg hover:shadow-orange-600/20 transition-all active:scale-95"
                                                     >
-                                                        <Plus className="w-4 h-4" />
+                                                        <Plus className="w-3 h-3" />
                                                         Open Position
                                                     </button>
                                                 )}
                                             </div>
+
+                                            {/* Tabs */}
+                                            <div className="flex bg-slate-50 p-0.5 rounded-xl w-fit mb-4">
+                                                {[
+                                                    { id: 'portfolio', label: 'Portfolio' },
+                                                    { id: 'analysis',  label: 'Analysis'  },
+                                                    { id: 'orders',    label: 'Orders'    },
+                                                ].map(tab => (
+                                                    <button
+                                                        key={tab.id}
+                                                        onClick={() => setActiveTab(tab.id)}
+                                                        className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === tab.id ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                                                    >
+                                                        {tab.label}
+                                                    </button>
+                                                ))}
+                                            </div>
                                         </div>
-                                        <div className="overflow-x-auto min-h-[400px]">
+                                        <div className="min-h-[400px]">
                                             {activeTab === 'portfolio' && (
                                                 <table className="w-full text-left border-collapse">
                                                     <thead>
-                                                        <tr className="bg-slate-50/40">
-                                                            <th className="p-8 text-[10px] font-black text-slate-400 uppercase tracking-widest">Asset Identification</th>
-                                                            <th className="p-8 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Volume</th>
-                                                            <th className="p-8 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Live / Entry Spot</th>
-                                                            <th className="p-8 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Profit Analysis</th>
-                                                            <th className="p-8"></th>
+                                                        <tr className="bg-slate-50/60 border-t border-slate-100">
+                                                            <th className="px-6 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest">Asset</th>
+                                                            <th className="px-6 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Units</th>
+                                                            <th className="px-6 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Live / Entry</th>
+                                                            <th className="px-6 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">P&amp;L</th>
+                                                            <th className="px-4 py-3 w-10"></th>
                                                         </tr>
                                                     </thead>
                                                     <tbody className="divide-y divide-slate-50">
                                                         {portfolio.map((item, pidx) => (
-                                                            <tr key={item.id || `portfolio-${pidx}`} className="group hover:bg-slate-50/50 transition-all duration-300">
-                                                                <td className="p-8">
-                                                                    <div className="flex items-center gap-6">
-                                                                        <div 
-                                                                            className="w-16 h-16 rounded-[24px] flex items-center justify-center font-black text-white text-2xl shadow-xl transition-transform group-hover:scale-105"
-                                                                            style={{ 
+                                                            <tr key={item.id || `portfolio-${pidx}`} className="group hover:bg-slate-50/50 transition-all duration-200">
+                                                                <td className="px-6 py-4">
+                                                                    <div className="flex items-center gap-3">
+                                                                        <div
+                                                                            className="w-10 h-10 rounded-2xl flex items-center justify-center font-black text-white text-sm shadow-md transition-transform group-hover:scale-105 shrink-0"
+                                                                            style={{
                                                                                 backgroundColor: colorMap[item.stock.symbol.split('.')[0]] || '#0f172a',
-                                                                                boxShadow: `0 20px 40px -12px ${(colorMap[item.stock.symbol.split('.')[0]] || '#0f172a')}40` 
+                                                                                boxShadow: `0 8px 20px -6px ${(colorMap[item.stock.symbol.split('.')[0]] || '#0f172a')}50`
                                                                             }}
                                                                         >
                                                                             {item.stock.symbol[0]}
                                                                         </div>
                                                                         <div>
-                                                                            <p className="font-black text-slate-900 text-xl tracking-tight uppercase">{item.stock.symbol}</p>
-                                                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Institutional Equity</p>
+                                                                            <p className="font-black text-slate-900 text-sm tracking-tight uppercase leading-none">{item.stock.symbol}</p>
+                                                                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Equity</p>
                                                                         </div>
                                                                     </div>
                                                                 </td>
-                                                                <td className="p-8 text-right font-black text-slate-700 text-xl">
-                                                                    {item.quantity.toLocaleString()}
-                                                                    <span className="block text-[9px] text-slate-300 font-black tracking-widest mt-1">UNITS</span>
+                                                                <td className="px-6 py-4 text-right">
+                                                                    <p className="font-black text-slate-800 text-sm">{item.quantity.toLocaleString()}</p>
+                                                                    <p className="text-[9px] text-slate-300 font-black tracking-widest mt-0.5">UNITS</p>
                                                                 </td>
-                                                                <td className="p-8 text-right">
-                                                                    <p className="font-black text-slate-900 text-xl">₹{item.currentPrice?.toLocaleString() || '--'}</p>
-                                                                    <div className="flex items-center justify-end gap-2 mt-1">
-                                                                        <div className="w-1.5 h-1.5 rounded-full bg-slate-400" />
-                                                                        <p className="text-[10px] text-slate-400 font-black tracking-widest uppercase italic">Entry: ₹{(item.avgPrice || item.averagePrice || 0).toLocaleString()}</p>
-                                                                    </div>
+                                                                <td className="px-6 py-4 text-right">
+                                                                    <p className="font-black text-slate-900 text-sm">₹{item.currentPrice?.toLocaleString() || '--'}</p>
+                                                                    <p className="text-[9px] text-slate-400 font-bold mt-0.5">Entry ₹{(item.avgPrice || item.averagePrice || 0).toLocaleString()}</p>
                                                                 </td>
-                                                                <td className="p-8 text-right">
-                                                                    <p className={`text-xl font-black ${((item.currentPrice - (item.avgPrice || item.averagePrice)) * item.quantity) >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                                                <td className="px-6 py-4 text-right">
+                                                                    <p className={`text-sm font-black ${((item.currentPrice - (item.avgPrice || item.averagePrice)) * item.quantity) >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
                                                                         {((item.currentPrice - (item.avgPrice || item.averagePrice)) * item.quantity) >= 0 ? '+' : ''}₹{((item.currentPrice - (item.avgPrice || item.averagePrice)) * item.quantity).toLocaleString()}
                                                                     </p>
-                                                                    <p className={`text-[9px] font-black uppercase tracking-widest mt-1 ${((item.currentPrice - (item.avgPrice || item.averagePrice)) / (item.avgPrice || item.averagePrice)) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                                                                        {(((item.currentPrice - (item.avgPrice || item.averagePrice)) / (item.avgPrice || item.averagePrice)) * 100).toFixed(2)}% Performance
+                                                                    <p className={`text-[9px] font-black mt-0.5 ${((item.currentPrice - (item.avgPrice || item.averagePrice)) / (item.avgPrice || item.averagePrice)) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                                                        {(((item.currentPrice - (item.avgPrice || item.averagePrice)) / (item.avgPrice || item.averagePrice)) * 100).toFixed(2)}%
                                                                     </p>
                                                                 </td>
-                                                                <td className="p-8 text-right">
-                                                                    <button 
+                                                                <td className="px-4 py-4">
+                                                                    <button
                                                                         onClick={() => handleDelete(item.id)}
-                                                                        className="p-4 bg-slate-50 text-slate-300 hover:bg-rose-50 hover:text-rose-600 rounded-2xl transition-all active:scale-90"
+                                                                        className="p-2 bg-slate-50 text-slate-300 hover:bg-rose-50 hover:text-rose-500 rounded-xl transition-all active:scale-90"
                                                                         title="Liquidate Position"
                                                                     >
-                                                                        <Trash2 className="w-5 h-5" />
+                                                                        <Trash2 className="w-4 h-4" />
                                                                     </button>
                                                                 </td>
                                                             </tr>
                                                         ))}
                                                         {portfolio.length === 0 && (
                                                             <tr>
-                                                                <td colSpan="5" className="p-32 text-center">
-                                                                    <div className="w-24 h-24 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-8 text-slate-200">
-                                                                        <Briefcase className="w-10 h-10" />
+                                                                <td colSpan="5" className="py-24 text-center">
+                                                                    <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-5 text-slate-200">
+                                                                        <Briefcase className="w-7 h-7" />
                                                                     </div>
-                                                                    <p className="text-slate-400 font-black text-xs uppercase tracking-[0.3em]">Vault Liquidity High • No Positions</p>
+                                                                    <p className="text-slate-400 font-black text-[10px] uppercase tracking-[0.3em]">No open positions</p>
                                                                 </td>
                                                             </tr>
                                                         )}
@@ -1075,19 +1048,19 @@ const Portfolio = () => {
                                     )}
                         </div>
 
-                        <div className="lg:col-span-4 space-y-10 lg:sticky lg:top-24 lg:self-start">
-
-
+                        <div className="lg:col-span-4 space-y-6 lg:sticky lg:top-24 lg:self-start">
                             {/* Asset Distribution */}
-                            <div className="bg-white p-10 rounded-[48px] border border-slate-100 shadow-sm">
-                                <div className="flex items-center gap-4 mb-8">
-                                    <div className="p-3 bg-rose-50 rounded-2xl text-rose-600">
-                                        <PieIcon className="w-6 h-6" />
+                            <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+                                <div className="h-0.5 bg-gradient-to-r from-rose-500 to-orange-400" />
+                                <div className="p-6">
+                                    <div className="flex items-center gap-3 mb-5">
+                                        <div className="w-7 h-7 rounded-xl bg-rose-50 flex items-center justify-center">
+                                            <PieIcon className="w-3.5 h-3.5 text-rose-500" />
+                                        </div>
+                                        <h2 className="text-sm font-black text-slate-900 tracking-tight">Distribution</h2>
                                     </div>
-                                    <h2 className="text-xl font-black text-slate-900 italic tracking-tight uppercase">Distribution</h2>
-                                </div>
-                                <div className="h-[200px] min-h-[200px] w-full mb-6">
-                                    <ResponsiveContainer width="100%" height={200}>
+                                    <div className="h-[180px] w-full">
+                                        <ResponsiveContainer width="100%" height={180}>
                                         <PieChart>
                                             <Pie
                                                 data={distributionData}
@@ -1108,103 +1081,97 @@ const Portfolio = () => {
                                     </ResponsiveContainer>
                                 </div>
                             </div>
+                        </div>
 
-                            {/* Watchlist Quick Peek */}
-                            <div className="bg-white p-10 rounded-[48px] border border-slate-100 shadow-sm">
-                                <div className="flex items-center justify-between mb-8">
-                                    <div className="flex items-center gap-4">
-                                        <div className="p-3 bg-indigo-50 rounded-2xl text-indigo-600">
-                                            <Eye className="w-6 h-6" />
+                            {/* Watchlist */}
+                            <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+                                <div className="h-0.5 bg-gradient-to-r from-indigo-500 to-violet-400" />
+                                <div className="p-6">
+                                    <div className="flex items-center justify-between mb-4">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-7 h-7 rounded-xl bg-indigo-50 flex items-center justify-center">
+                                                <Eye className="w-3.5 h-3.5 text-indigo-500" />
+                                            </div>
+                                            <h2 className="text-sm font-black text-slate-900 tracking-tight">Watchlist</h2>
                                         </div>
-                                        <h2 className="text-xl font-black text-slate-900 italic tracking-tight uppercase">Watchlist</h2>
+                                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{watchlist.length} Active</span>
                                     </div>
-                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{watchlist.length} ACTIVE</span>
-                                </div>
 
-                                <div className="relative mb-8">
-                                    <form onSubmit={addToWatchlist} className="flex gap-3">
-                                        <div className="relative flex-1">
-                                            <input 
-                                                type="text" 
-                                                placeholder="ADD TICKER (E.G. RELIANCE)" 
-                                                value={watchlistSymbol}
-                                                onChange={(e) => setWatchlistSymbol(e.target.value)}
-                                                className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-5 py-3 text-[10px] font-black uppercase tracking-widest focus:outline-none focus:border-indigo-200 transition-all"
-                                            />
-                                            {isSearching && (
-                                                <div className="absolute right-4 top-1/2 -translate-y-1/2">
-                                                    <Loader2 className="w-3 h-3 animate-spin text-slate-400" />
-                                                </div>
+                                    <div className="relative mb-5">
+                                        <form onSubmit={addToWatchlist} className="flex gap-2">
+                                            <div className="relative flex-1">
+                                                <input
+                                                    type="text"
+                                                    placeholder="Add ticker (e.g. RELIANCE)"
+                                                    value={watchlistSymbol}
+                                                    onChange={(e) => setWatchlistSymbol(e.target.value)}
+                                                    className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-2.5 text-[10px] font-black uppercase tracking-widest focus:outline-none focus:border-indigo-200 transition-all"
+                                                />
+                                                {isSearching && (
+                                                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                                                        <Loader2 className="w-3 h-3 animate-spin text-slate-400" />
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <button type="submit" className="p-2.5 bg-slate-900 text-white rounded-xl hover:bg-indigo-600 transition-all active:scale-90">
+                                                <Plus className="w-3.5 h-3.5" />
+                                            </button>
+                                        </form>
+
+                                        <AnimatePresence>
+                                            {searchSuggestions.length > 0 && (
+                                                <motion.div
+                                                    initial={{ opacity: 0, y: 10 }}
+                                                    animate={{ opacity: 1, y: 0 }}
+                                                    exit={{ opacity: 0, y: 10 }}
+                                                    className="absolute z-50 left-0 right-0 top-full mt-2 bg-white border border-slate-100 rounded-2xl shadow-xl overflow-hidden"
+                                                >
+                                                    {searchSuggestions.map((item) => (
+                                                        <button
+                                                            key={item.symbol}
+                                                            onClick={() => selectFromSearch(item.symbol)}
+                                                            className="w-full px-4 py-3 flex items-center justify-between hover:bg-slate-50 transition-colors text-left group"
+                                                        >
+                                                            <div>
+                                                                <p className="text-[10px] font-black text-slate-900 uppercase tracking-widest">{item.symbol}</p>
+                                                                <p className="text-[9px] font-bold text-slate-400 truncate max-w-[180px]">{item.name}</p>
+                                                            </div>
+                                                            <Plus className="w-3 h-3 text-slate-300 group-hover:text-indigo-600 transition-all" />
+                                                        </button>
+                                                    ))}
+                                                </motion.div>
                                             )}
-                                        </div>
-                                        <button type="submit" className="p-3 bg-slate-900 text-white rounded-2xl hover:bg-indigo-600 transition-all shadow-lg active:scale-90">
-                                            <Plus className="w-4 h-4" />
-                                        </button>
-                                    </form>
+                                        </AnimatePresence>
+                                    </div>
 
-                                    {/* Search Suggestions Dropdown */}
-                                    <AnimatePresence>
-                                        {searchSuggestions.length > 0 && (
-                                            <motion.div 
-                                                initial={{ opacity: 0, y: 10 }}
-                                                animate={{ opacity: 1, y: 0 }}
-                                                exit={{ opacity: 0, y: 10 }}
-                                                className="absolute z-50 left-0 right-0 top-full mt-2 bg-white border border-slate-100 rounded-3xl shadow-[0_10px_40px_rgba(0,0,0,0.08)] overflow-hidden"
-                                            >
-                                                {searchSuggestions.map((item) => (
-                                                    <button
-                                                        key={item.symbol}
-                                                        onClick={() => selectFromSearch(item.symbol)}
-                                                        className="w-full px-6 py-4 flex items-center justify-between hover:bg-slate-50 transition-colors text-left group"
-                                                    >
-                                                        <div>
-                                                            <p className="text-[10px] font-black text-slate-900 uppercase tracking-widest">{item.symbol}</p>
-                                                            <p className="text-[9px] font-bold text-slate-400 uppercase truncate max-w-[200px]">{item.name}</p>
-                                                        </div>
-                                                        <div className="flex items-center gap-2">
-                                                            <span className="text-[8px] font-black text-slate-300 uppercase px-2 py-0.5 border border-slate-100 rounded-md group-hover:border-indigo-200 group-hover:text-indigo-600 transition-all">
-                                                                {item.exch}
-                                                            </span>
-                                                            <Plus className="w-3 h-3 text-slate-200 group-hover:text-indigo-600 transition-all" />
-                                                        </div>
-                                                    </button>
-                                                ))}
-                                            </motion.div>
-                                        )}
-                                    </AnimatePresence>
-                                </div>
-
-                                <div className="space-y-6">
-                                    {watchlist.length > 0 ? watchlist.slice(0, 10).map((item, idx) => (
-                                        <div key={item.id} className="flex items-center justify-between group cursor-pointer">
-                                            <div className="flex items-center gap-4">
-                                                <div className="w-12 h-12 rounded-xl bg-slate-50 flex items-center justify-center font-black text-slate-400 group-hover:bg-slate-900 group-hover:text-white transition-all">
-                                                    {item.stock.symbol[0]}
-                                                </div>
-                                                <div>
-                                                    <span className="font-black text-slate-900 text-base tracking-tight">{item.stock.symbol}</span>
-                                                    <div className="flex items-center gap-2 mt-1">
-                                                        <span className="text-[9px] text-slate-400 font-black tracking-widest uppercase">NSE</span>
+                                    <div className="space-y-3">
+                                        {watchlist.length > 0 ? watchlist.slice(0, 10).map((item) => (
+                                            <div key={item.id} className="flex items-center justify-between group cursor-pointer">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-9 h-9 rounded-xl bg-slate-50 flex items-center justify-center font-black text-slate-400 text-sm group-hover:bg-slate-900 group-hover:text-white transition-all">
+                                                        {item.stock.symbol[0]}
+                                                    </div>
+                                                    <div>
+                                                        <span className="font-black text-slate-900 text-sm tracking-tight">{item.stock.symbol}</span>
+                                                        <p className="text-[9px] text-slate-400 font-black tracking-widest uppercase">NSE</p>
                                                     </div>
                                                 </div>
+                                                <button
+                                                    onClick={() => removeFromWatchlist(item.id)}
+                                                    className="p-2 bg-white shadow-sm rounded-lg text-slate-200 hover:text-rose-500 border border-transparent transition-all opacity-0 group-hover:opacity-100"
+                                                >
+                                                    <X className="w-3.5 h-3.5" />
+                                                </button>
                                             </div>
-                                            <button 
-                                                onClick={() => removeFromWatchlist(item.id)}
-                                                className="p-3 bg-white shadow-sm rounded-xl text-slate-200 hover:text-rose-600 hover:border-rose-100 border border-transparent transition-all opacity-0 group-hover:opacity-100 hover:scale-110"
-                                            >
-                                                <X className="w-4 h-4" />
-                                            </button>
-                                        </div>
-                                    )) : (
-                                        <p className="text-[10px] font-bold text-slate-400 text-center py-10 uppercase tracking-widest italic">No assets tracked</p>
-                                    )}
-                                </div>
+                                        )) : (
+                                            <p className="text-[10px] font-bold text-slate-400 text-center py-8 uppercase tracking-widest italic">No assets tracked</p>
+                                        )}
+                                    </div>
 
-                                <div className="mt-10 pt-6 border-t border-slate-50">
-                                    <div className="flex gap-3 items-start">
-                                        <Zap className="w-4 h-4 text-orange-600 mt-0.5 shrink-0" />
-                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-relaxed">
-                                            <span className="text-orange-600">Priority Protocol:</span> These stocks would be considered first for deployment in the AI Pilot mode.
+                                    <div className="mt-5 pt-4 border-t border-slate-50 flex gap-2 items-start">
+                                        <Zap className="w-3.5 h-3.5 text-orange-500 mt-0.5 shrink-0" />
+                                        <p className="text-[9px] font-bold text-slate-400 leading-relaxed">
+                                            <span className="text-orange-500 font-black">Priority Protocol:</span> These stocks are prioritised for AI Pilot deployment.
                                         </p>
                                     </div>
                                 </div>
@@ -1213,6 +1180,7 @@ const Portfolio = () => {
                     </div>
                 </FeatureLock>
             </div>
+
 
             {/* Log Detail Modal */}
             <AnimatePresence>

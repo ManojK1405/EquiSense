@@ -68,7 +68,8 @@ export const googleLogin = async (req, res) => {
   const { tokenId } = req.body;
 
   try {
-    const ticket = await client.verifyIdToken({
+    const freshClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+    const ticket = await freshClient.verifyIdToken({
       idToken: tokenId,
       audience: process.env.GOOGLE_CLIENT_ID,
     });
@@ -158,5 +159,47 @@ export const updateProfile = async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Failed to update profile' });
+  }
+};
+
+export const getRecentAnalyses = async (req, res) => {
+  try {
+    const recent = await prisma.recentAnalysis.findMany({
+      where: { userId: req.userId },
+      orderBy: { analyzedAt: 'desc' },
+      take: 5,
+    });
+    res.json(recent);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Failed to fetch recent analyses' });
+  }
+};
+
+export const recordRecentAnalysis = async (req, res) => {
+  const { symbol, name } = req.body;
+  if (!symbol) return res.status(400).json({ message: 'Symbol is required' });
+
+  try {
+    await prisma.recentAnalysis.upsert({
+      where: { userId_symbol: { userId: req.userId, symbol } },
+      update: { analyzedAt: new Date(), name },
+      create: { userId: req.userId, symbol, name },
+    });
+
+    // Enforce max 5 per user: delete oldest beyond 5
+    const all = await prisma.recentAnalysis.findMany({
+      where: { userId: req.userId },
+      orderBy: { analyzedAt: 'desc' },
+    });
+    if (all.length > 5) {
+      const toDelete = all.slice(5).map(r => r.id);
+      await prisma.recentAnalysis.deleteMany({ where: { id: { in: toDelete } } });
+    }
+
+    res.json({ message: 'Recorded' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Failed to record analysis' });
   }
 };

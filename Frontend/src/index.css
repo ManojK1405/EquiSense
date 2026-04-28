@@ -8,10 +8,23 @@
 body {
     @apply bg-slate-50 text-gray-900 text-sm antialiased;
     background-image: 
-        radial-gradient(at 10% 10%, rgba(79, 70, 229, 0.035) 0px, transparent 50%),
-        radial-gradient(at 90% 90%, rgba(244, 63, 94, 0.06) 0px, transparent 50%);
+        radial-gradient(at 10% 10%, rgba(79, 70, 229, 0.13) 0px, transparent 55%),
+        radial-gradient(at 90% 90%, rgba(244, 63, 94, 0.16) 0px, transparent 55%);
     background-attachment: fixed;
 }
+
+/* ── Premium text selection ── */
+::selection {
+    background: rgba(244, 63, 94, 0.15);
+    color: #be123c;
+}
+
+/* ── Custom scrollbar ── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: #f43f5e; }
+* { scrollbar-width: thin; scrollbar-color: #e2e8f0 transparent; }
 
 .btn {
     @apply cursor-pointer bg-gradient-to-r from-rose-500 to-orange-500;
@@ -21,13 +34,53 @@ body {
     @apply bg-clip-text text-transparent bg-gradient-to-r from-rose-500 to-orange-500 py-1 leading-[1.2];
 }
 
+/* ── Live stock ticker scroll ── */
+@keyframes ticker-scroll {
+    0%   { transform: translateX(0); }
+    100% { transform: translateX(-50%); }
+}
+.ticker-track { animation: ticker-scroll 40s linear infinite; }
+.ticker-track:hover { animation-play-state: paused; }
+
+/* ── Shimmer loader ── */
+@keyframes shimmer {
+    0%   { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+}
+.shimmer {
+    background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+}
+
+/* ── Fade in up ── */
+@keyframes fade-in-up {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in-up { animation: fade-in-up 0.5s ease both; }
+
+/* ── Staggered children ── */
+.stagger > *:nth-child(1)  { animation-delay: 0ms; }
+.stagger > *:nth-child(2)  { animation-delay: 80ms; }
+.stagger > *:nth-child(3)  { animation-delay: 160ms; }
+.stagger > *:nth-child(4)  { animation-delay: 240ms; }
+.stagger > *:nth-child(5)  { animation-delay: 320ms; }
+.stagger > *:nth-child(6)  { animation-delay: 400ms; }
+
+/* ── Gradient pulse (live dot) ── */
+@keyframes live-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(1.4); }
+}
+.live-dot { animation: live-pulse 1.5s ease-in-out infinite; }
+
 /* Custom Research Scrollbar - Hidden for premium look */
 .custom-research-scrollbar,
 .custom-research-scrollbar * {
-    scrollbar-width: none !important; /* Firefox */
-    -ms-overflow-style: none !important; /* IE and Edge */
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
 }
-
 .custom-research-scrollbar::-webkit-scrollbar,
 .custom-research-scrollbar *::-webkit-scrollbar {
     display: none !important;
@@ -41,7 +94,4 @@ input[type="number"]::-webkit-outer-spin-button {
     -webkit-appearance: none;
     margin: 0;
 }
-
-input[type="number"] {
-    -moz-appearance: textfield; /* Firefox */
-}
+input[type="number"] { -moz-appearance: textfield; }

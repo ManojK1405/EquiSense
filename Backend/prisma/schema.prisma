@@ -51,6 +51,7 @@ model User {
   tradeLogs       TradeLog[]
   settlements     SettlementEntry[]
   dailyReports    DailyReport[]
+  recentAnalyses  RecentAnalysis[]
 }
 
 model DailyReport {
@@ -202,4 +203,16 @@ model NewsletterSubscription {
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model RecentAnalysis {
+  id        String   @id @default(uuid())
+  userId    String
+  symbol    String
+  name      String?
+  analyzedAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, symbol])
 }

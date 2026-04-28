@@ -1,15 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Search, TrendingUp, BarChart3, PieChart, Newspaper, ArrowUpRight, ArrowDownRight, Globe, Layers, Cpu, RefreshCw, Info, Activity, Zap, Maximize2, Building2, MessageSquare, ChevronDown, ChevronUp, ArrowRight, Target, ShieldCheck, Eye, X } from 'lucide-react';
+import { Search, TrendingUp, BarChart3, PieChart, Newspaper, ArrowUpRight, ArrowDownRight, Globe, Layers, Cpu, RefreshCw, Info, Activity, Zap, Maximize2, Building2, MessageSquare, ChevronDown, ChevronUp, ArrowRight, Target, ShieldCheck, Eye, X, ScanSearch } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import api from '../api';
 import { useAuth } from '../context/AuthContext';
 import FeatureLock from '../components/feature-lock';
 import { toast } from 'react-hot-toast';
+import PageHero from '../components/PageHero';
 
 const Dashboard = () => {
     const { user } = useAuth();
     const CACHE_KEY = `equisense_dashboard_cache_${user?.id || 'guest'}`;
+
+    const RECENT_KEY = `equisense_recent_stocks_${user?.id || 'guest'}`;
 
     const [searchQuery, setSearchQuery] = useState('');
     const [marketData, setMarketData] = useState(() => {
@@ -19,6 +22,7 @@ const Dashboard = () => {
         } catch (e) { return null; }
     });
     const [loading, setLoading] = useState(!localStorage.getItem(CACHE_KEY));
+    const [recentStocks, setRecentStocks] = useState([]);
 
     const [searchResults, setSearchResults] = useState([]);
     const [showSuggestions, setShowSuggestions] = useState(false);
@@ -42,9 +46,20 @@ const Dashboard = () => {
         }
     };
 
+    const fetchRecentAnalyses = async () => {
+        if (!user) return;
+        try {
+            const res = await api.get('/auth/recent-analyses');
+            setRecentStocks(res.data);
+        } catch (e) {
+            console.error('Failed to fetch recent analyses', e);
+        }
+    };
+
     useEffect(() => {
         fetchMarket();
-    }, []);
+        fetchRecentAnalyses();
+    }, [user]);
 
     useEffect(() => {
         if (isModalOpen) {
@@ -74,6 +89,12 @@ const Dashboard = () => {
         setSearchQuery('');
         setShowSuggestions(false);
         setSelectedStock(stock);
+        // Save to DB (fire and forget)
+        if (user) {
+            api.post('/auth/recent-analyses', { symbol: stock.symbol, name: stock.name || stock.shortName })
+               .then(() => fetchRecentAnalyses())
+               .catch(err => console.error('Failed to record analysis', err));
+        }
     };
 
     useEffect(() => {
@@ -120,46 +141,81 @@ const Dashboard = () => {
             transition={{ duration: 0.5, ease: "easeOut" }}
             className="bg-transparent min-h-screen"
         >
-            <div className="max-w-7xl mx-auto px-6 py-12 lg:py-16 text-center">
-                <h2 className="text-sm font-black text-orange-600 uppercase tracking-[0.3em] mb-4">Stock Analysis</h2>
-                <h1 className="text-5xl font-black text-slate-900 tracking-tight italic uppercase mb-16 underline decoration-orange-600 underline-offset-8 pb-4">Research <span className="text-premium">Terminal</span></h1>
+            <PageHero
+                variant="centered"
+                badge={{ icon: ScanSearch, label: 'Institutional Research Terminal', live: true }}
+                title="Research"
+                titleAccent="Terminal"
+                subtitle="Deep quantitative analysis powered by AI. Uncover signals, trends, and institutional flow across Indian and global equities."
+                accentColor="rose"
+                stats={[
+                    { label: 'Markets', value: '50+', color: 'rose' },
+                    { label: 'Indicators', value: '120+', color: 'orange' },
+                    { label: 'Engine', value: 'Gemini', color: 'rose' },
+                    { label: 'Latency', value: 'Live', color: 'emerald' },
+                ]}
+            />
 
-                {/* Search Bar */}
-                <div className="max-w-3xl mx-auto mb-16 relative">
-                    <div className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-400">
-                        <Search className="w-6 h-6" />
-                    </div>
-                    <input
-                        type="text"
-                        placeholder="Search for stocks (e.g. RELIANCE, TCS, AAPL)..."
-                        className="w-full pl-16 pr-8 py-6 bg-white border border-slate-200 rounded-[32px] shadow-2xl text-lg font-medium focus:outline-none focus:ring-4 focus:ring-orange-500/10 focus:border-orange-500/50 transition-all"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
-                    />
+            <div className="max-w-7xl mx-auto px-6 pb-12 lg:pb-16">
+                {/* ── Premium Search Section ── */}
+                <div className="max-w-3xl mx-auto mb-16 -mt-4">
+                    <div className="relative">
+                        {/* Search input */}
+                        <div className="relative group">
+                            <div className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-rose-500 transition-colors">
+                                <Search className="w-5 h-5" />
+                            </div>
+                            <input
+                                type="text"
+                                placeholder="Search stocks, indices, ETFs… (e.g. RELIANCE, TCS, AAPL)"
+                                className="w-full pl-14 pr-28 py-5 bg-white border border-slate-200 rounded-[24px] shadow-xl text-base font-medium text-slate-900 placeholder-slate-300 focus:outline-none focus:ring-4 focus:ring-rose-500/10 focus:border-rose-400/60 transition-all"
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                            />
+                            <div className="absolute right-5 top-1/2 -translate-y-1/2 flex items-center gap-2">
+                                <kbd className="hidden md:flex items-center gap-1 px-2 py-1 bg-slate-100 border border-slate-200 rounded-lg text-[9px] font-black text-slate-400 uppercase tracking-widest">⌘K</kbd>
+                            </div>
+                        </div>
 
-                    {showSuggestions && searchResults.length > 0 && (
-                        <div className="absolute top-[calc(100%+10px)] left-0 w-full bg-white border border-slate-100 rounded-[32px] shadow-2xl z-50 overflow-hidden text-left py-4">
-                            {searchResults.map((res) => (
-                                <div
-                                    key={res.symbol}
-                                    className="px-8 py-4 hover:bg-orange-50 cursor-pointer flex justify-between items-center transition-colors border-b border-slate-50 last:border-0"
-                                    onMouseDown={(e) => {
-                                        e.preventDefault();
-                                        handleSelection(res);
-                                    }}
+                        {/* Quick chips */}
+                        <div className="flex items-center gap-2 mt-3 flex-wrap px-1">
+                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Popular:</span>
+                            {['RELIANCE', 'TCS', 'HDFC BANK', 'NIFTY 50', 'AAPL'].map((chip) => (
+                                <button
+                                    key={chip}
+                                    onMouseDown={(e) => { e.preventDefault(); setSearchQuery(chip); }}
+                                    className="px-3 py-1 bg-white border border-slate-200 rounded-full text-[9px] font-black text-slate-500 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 transition-all shadow-sm"
                                 >
-                                    <div>
-                                        <p className="font-black text-slate-900 tracking-tight">{res.symbol}</p>
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{res.name}</p>
-                                    </div>
-                                    <div className="text-[10px] font-black bg-slate-100 px-3 py-1 rounded-full text-slate-500 uppercase tracking-widest leading-none">
-                                        {res.exch}
-                                    </div>
-                                </div>
+                                    {chip}
+                                </button>
                             ))}
                         </div>
-                    )}
+
+                        {/* Suggestions dropdown */}
+                        {showSuggestions && searchResults.length > 0 && (
+                            <div className="absolute top-[calc(100%+4px)] left-0 w-full bg-white border border-slate-100 rounded-[20px] shadow-2xl z-50 overflow-hidden text-left py-2 mt-8">
+                                {searchResults.map((res) => (
+                                    <div
+                                        key={res.symbol}
+                                        className="px-5 py-3.5 hover:bg-rose-50 cursor-pointer flex justify-between items-center transition-colors border-b border-slate-50 last:border-0 group"
+                                        onMouseDown={(e) => { e.preventDefault(); handleSelection(res); }}
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-8 h-8 rounded-xl bg-slate-900 text-white flex items-center justify-center font-black text-[11px] group-hover:bg-rose-600 transition-colors">
+                                                {res.symbol[0]}
+                                            </div>
+                                            <div>
+                                                <p className="font-black text-slate-900 text-sm tracking-tight">{res.symbol}</p>
+                                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{res.name}</p>
+                                            </div>
+                                        </div>
+                                        <span className="text-[9px] font-black bg-slate-100 group-hover:bg-white px-2.5 py-1 rounded-full text-slate-500 uppercase tracking-widest transition-colors">{res.exch}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -500,29 +556,41 @@ const Dashboard = () => {
                         </div>
 
                         <div className="bg-white rounded-[40px] border border-slate-200 shadow-sm p-8">
-                            <h4 className="text-lg font-bold text-slate-900 mb-6 tracking-tight italic flex items-center gap-2">
-                                <TrendingUp className="w-5 h-5 text-emerald-500" />
-                                Recent Analysis
-                            </h4>
-                            <div className="space-y-4">
-                                {marketData?.trending?.map((stock) => (
-                                    <div key={stock.symbol} className="flex justify-between items-center p-4 rounded-3xl hover:bg-slate-50 transition-colors border border-transparent hover:border-slate-100 group">
-                                        <div className="flex items-center gap-4">
-                                            <div className="w-12 h-12 rounded-2xl bg-slate-50 flex items-center justify-center font-bold text-slate-900 shadow-sm">
-                                                {stock.symbol[0]}
+                             <h4 className="text-lg font-bold text-slate-900 mb-6 tracking-tight italic flex items-center gap-2">
+                                <Eye className="w-5 h-5 text-orange-500" />
+                                Recently Analyzed
+                             </h4>
+                             {recentStocks.length === 0 ? (
+                                 <div className="flex flex-col items-center justify-center py-8 text-center">
+                                     <Search className="w-10 h-10 text-slate-200 mb-3" />
+                                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No stocks analyzed yet</p>
+                                     <p className="text-[10px] text-slate-300 font-medium mt-1">Search for a stock above to get started</p>
+                                 </div>
+                             ) : (
+                                 <div className="space-y-3">
+                                    {recentStocks.map((stock, idx) => (
+                                        <motion.button
+                                            key={stock.symbol}
+                                            initial={{ opacity: 0, x: -10 }}
+                                            animate={{ opacity: 1, x: 0 }}
+                                            transition={{ delay: idx * 0.05 }}
+                                            onClick={() => handleSelection(stock)}
+                                            className="w-full flex justify-between items-center p-4 rounded-2xl hover:bg-orange-50 hover:border-orange-100 transition-all border border-transparent group text-left"
+                                        >
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-rose-500 flex items-center justify-center font-black text-white text-sm shadow-md shadow-orange-500/20">
+                                                    {stock.symbol[0]}
+                                                </div>
+                                                <div>
+                                                    <p className="font-black text-slate-900 text-sm tracking-tight">{stock.symbol}</p>
+                                                    <p className="text-[10px] text-slate-400 font-medium truncate max-w-[120px]">{stock.name}</p>
+                                                </div>
                                             </div>
-                                            <div>
-                                                <p className="font-black text-slate-900 text-sm tracking-tight">{stock.symbol}</p>
-                                                <p className="text-[10px] text-slate-400 font-bold uppercase">₹{stock.price.toLocaleString()}</p>
-                                            </div>
-                                        </div>
-                                        <div className={`flex items-center font-bold text-xs ${stock.change >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                                            {stock.changePercent.toFixed(2)}%
-                                            {stock.change >= 0 ? <ArrowUpRight className="w-3 h-3 ml-1" /> : <ArrowDownRight className="w-3 h-3 ml-1" />}
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
+                                            <ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-orange-500 group-hover:translate-x-1 transition-all" />
+                                        </motion.button>
+                                    ))}
+                                 </div>
+                             )}
                         </div>
                     </div>
 

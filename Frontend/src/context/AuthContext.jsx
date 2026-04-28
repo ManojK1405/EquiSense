@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import axios from 'axios';
+import toast from 'react-hot-toast';
 
 const AuthContext = createContext();
 
@@ -35,23 +36,27 @@ export const AuthProvider = ({ children }) => {
     const response = await axios.post(`${API_URL}/auth/login`, { email, password });
     setUser(response.data.user);
     setShowAuthModal(false);
+    toast.success(`Welcome back, ${response.data.user.name}!`);
   };
 
   const signup = async (name, email, password) => {
     const response = await axios.post(`${API_URL}/auth/signup`, { name, email, password });
     setUser(response.data.user);
     setShowAuthModal(false);
+    toast.success(`Welcome to EquiTrade, ${response.data.user.name}!`);
   };
 
   const googleLogin = async (tokenId) => {
     const response = await axios.post(`${API_URL}/auth/google`, { tokenId });
     setUser(response.data.user);
     setShowAuthModal(false);
+    toast.success(`Welcome back, ${response.data.user.name}!`);
   };
 
   const logout = async () => {
     try {
         await axios.post(`${API_URL}/auth/logout`);
+        toast.success('Successfully logged out.');
     } catch (e) {
         console.error('Logout error', e);
     } finally {
