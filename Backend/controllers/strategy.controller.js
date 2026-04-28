@@ -9,9 +9,9 @@ const prisma = new PrismaClient();
 
 dotenv.config();
 
-const yahooFinance = new YahooFinance({ 
-    suppressNotices: ['yahooSurvey'],
-    validation: { logErrors: false }
+const yahooFinance = new YahooFinance({
+  suppressNotices: ['yahooSurvey'],
+  validation: { logErrors: false }
 });
 
 // Cache for Intraday Pulse
@@ -97,7 +97,7 @@ export const generateStrategy = async (req, res) => {
   }
 
   const resolvedSector = (sector || 'any').toLowerCase();
-  
+
   let symbols;
   try {
     symbols = await getDynamicSymbols(resolvedSector, 8);
@@ -197,20 +197,20 @@ export const generateStrategy = async (req, res) => {
     if (Array.isArray(strategy.allocation)) {
       // Ensure weights sum to 100%
       let totalWeight = strategy.allocation.reduce((sum, item) => sum + (Number(item.weight) || 0), 0);
-      
+
       // If the AI hallucinated and under-allocated, fill the gap with a Cash Reserve
       if (totalWeight < 100) {
-          const gap = 100 - totalWeight;
-          strategy.allocation.push({
-              name: 'LIQUIDBEES.NS',
-              displayName: 'Cash Reserve (Auto-Balanced)',
-              type: 'cash',
-              weight: gap,
-              reason: 'System auto-allocated remaining capital to liquid reserves to ensure 100% deployment of mandate.',
-              risk: 'Low'
-          });
+        const gap = 100 - totalWeight;
+        strategy.allocation.push({
+          name: 'LIQUIDBEES.NS',
+          displayName: 'Cash Reserve (Auto-Balanced)',
+          type: 'cash',
+          weight: gap,
+          reason: 'System auto-allocated remaining capital to liquid reserves to ensure 100% deployment of mandate.',
+          risk: 'Low'
+        });
       }
-      
+
       // Re-calculate the absolute amounts to ensure precision
       strategy.allocation = strategy.allocation.map(item => ({
         ...item,
@@ -293,16 +293,16 @@ async function fetchIntradayCandidate(symbol) {
 
     const baseScore = scoreIntraday({ return5, volumeSpike, currentRSI, trend });
     const entryPrice = latest.close;
-    
+
     const entryMin = (entryPrice * 0.995).toFixed(1);
     const entryMax = (entryPrice * 1.003).toFixed(1);
     const entryRange = `${entryMin} - ${entryMax}`;
-    
+
     const targetBase = entryPrice * (1 + Math.min(0.05, Math.max(0.025, baseScore / 200)));
     const targetMin = (targetBase * 0.99).toFixed(1);
     const targetMax = (targetBase * 1.015).toFixed(1);
     const targetRange = `${targetMin} - ${targetMax}`;
-    
+
     const stopBase = entryPrice * 0.985;
     const stopMin = (stopBase * 0.99).toFixed(1);
     const stopMax = (stopBase * 1.01).toFixed(1);
@@ -337,7 +337,7 @@ async function fetchIntradayCandidate(symbol) {
 
 export const generateIntradayPulse = async (req, res) => {
   const resolvedSector = (req.body?.sector || 'any').toLowerCase();
-  
+
   // 1. Check Institutional Cache
   const cached = pulseCache.get(resolvedSector);
   const now = Date.now();
@@ -348,7 +348,7 @@ export const generateIntradayPulse = async (req, res) => {
 
   try {
     const data = await fetchIntradayPulseData(resolvedSector);
-    
+
     // Store in cache
     pulseCache.set(resolvedSector, {
       timestamp: now,
@@ -367,7 +367,7 @@ export const generateIntradayPulse = async (req, res) => {
  */
 async function fetchIntradayPulseData(sector) {
   const resolvedSector = sector.toLowerCase();
-  
+
   let candidates;
   try {
     candidates = await getDynamicSymbols(resolvedSector, 10);
@@ -406,7 +406,7 @@ async function fetchIntradayPulseData(sector) {
         `Volume Metric: Algorithm detects a ${((candidate.volumeSpike - 1) * 100).toFixed(1)}% deviation in liquidity vs the 10-day average. ${candidate.volumeSpike > 1.1 ? 'Institutions are actively stepping in.' : 'Volume remains standard; prepare for sudden catalyst triggers.'}`,
         `Technical Bounds: RSI holds at ${candidate.currentRSI.toFixed(1)}/100. ${candidate.currentRSI > 80 ? 'Warning: Asset is highly overbought.' : candidate.currentRSI < 35 ? 'Deep discount identified; high probability of a mean-reversion bounce.' : 'Settled squarely in a highly favorable breakout zone.'}`,
         `Trend Matrix: Short-term trailing overlays are heavily ${candidate.trend.toUpperCase()} against the live execution price (₹${candidate.currentPrice.toFixed(1)}).`,
-        `Live Sentiment: ${sentiment > 0.3 ? `Positive media cycle detected (+${(sentiment*100).toFixed(0)}% buzz score).` : sentiment < -0.3 ? `Negative drag detected (${(sentiment*100).toFixed(0)}%). Strict sizing recommended.` : 'News flow is fundamentally neutral.'}`
+        `Live Sentiment: ${sentiment > 0.3 ? `Positive media cycle detected (+${(sentiment * 100).toFixed(0)}% buzz score).` : sentiment < -0.3 ? `Negative drag detected (${(sentiment * 100).toFixed(0)}%). Strict sizing recommended.` : 'News flow is fundamentally neutral.'}`
       ],
     };
   }));
@@ -434,7 +434,7 @@ async function fetchIntradayPulseData(sector) {
 export const refreshIntradayPulseCache = async () => {
   const sectors = ['any', 'IT', 'Banking', 'Auto', 'Energy'];
   console.log('--- [IntradayPulse] Warming Sector Caches ---');
-  
+
   for (const sector of sectors) {
     try {
       console.log(`[IntradayPulse] Refreshing cache for: ${sector}`);
@@ -455,7 +455,7 @@ export const refreshIntradayPulseCache = async () => {
  */
 export const generateReverseStrategy = async (req, res) => {
   const { goalQuery, previousResult } = req.body;
-  
+
   if (!goalQuery) {
     return res.status(400).json({ error: 'Goal query is required (e.g., "Buy a Ducati in 6 years").' });
   }
@@ -530,7 +530,7 @@ export const generateReverseStrategy = async (req, res) => {
 
     const raw = await getAIStrategy(prompt);
     const parsed = JSON.parse(raw);
-    
+
     // Final post-processing for precision
     const fullResult = {
       ...parsed,
@@ -613,7 +613,7 @@ export const chatStrategy = async (req, res) => {
 
   try {
     const userMessage = messages[messages.length - 1].content;
-    
+
     // Fetch fresh context to make the bot "Institutional"
     const [nifty, bankNifty, trending] = await Promise.all([
       fetchMomentum('^NSEI'),
@@ -653,7 +653,7 @@ export const chatStrategy = async (req, res) => {
 export const backtestStrategy = async (req, res) => {
   try {
     const { allocation, horizon, amount } = req.body;
-    
+
     if (!allocation || !horizon || !amount) {
       return res.status(400).json({ error: 'Missing required parameters for backtest.' });
     }
@@ -696,95 +696,41 @@ export const backtestStrategy = async (req, res) => {
 export const customBacktestStrategy = async (req, res) => {
   try {
     const { userInput, horizon, amount } = req.body;
-    
+
     if (!userInput || !horizon || !amount) {
       return res.status(400).json({ error: 'Missing required parameters for custom backtest.' });
     }
 
-    const investAmount = parseFloat(amount);
-    const horizonYears = parseInt(horizon);
-
-    // Step 1: Ask AI to parse the user input into structured portfolio weights
-    const parsePrompt = `
-      Extract the stock tickers and their portfolio weights from the user input.
-      Assume Indian stocks (NSE/BSE). Append .NS to NSE tickers if not provided.
-      Input: "${userInput}"
-      Return ONLY a raw JSON array without markdown formatting: [{"symbol": "RELIANCE.NS", "weight": 50, "name": "Reliance Industries"}]
-      Ensure weights sum to 100. If no weight is specified, distribute equally.
+    const prompt = `
+      Persona: Senior Quantitative Analyst & Risk Manager.
+      Objective: Run a simulated historical backtest for a user's custom Indian stock market strategy.
+      
+      User Strategy Input: "${userInput}"
+      Initial Investment (T0): ₹${amount}
+      Historical Lookback Period: ${horizon} Years
+      
+      Task:
+      First, deduce the intended portfolio allocation from the user's input (assume NSE/BSE stocks).
+      Then, based on your extensive historical knowledge of these specific stocks over the last ${horizon} years, calculate what this portfolio would be worth TODAY if it had been invested ${horizon} years ago in those proportions.
+      
+      Requirements:
+      1. Provide the "parsedAllocation" as an array of objects: [{ "name": "TICKER.NS", "weight": 50, "displayName": "Company Name" }]. Ensure weights sum to 100.
+      2. Provide a realistic "historicalValue" (the final simulated amount in INR). Use integers only.
+      3. Provide the "historicalCAGR" string (e.g. "14.5%").
+      4. Provide a brief 2-3 sentence "analysis" explaining how this portfolio weathered past macro events and assessing its historical drawdown risk.
+      
+      Return ONLY a raw JSON object (no markdown):
+      {
+        "parsedAllocation": [{"name": "RELIANCE.NS", "weight": 100, "displayName": "Reliance Industries"}],
+        "historicalValue": 1200000,
+        "historicalCAGR": "14.5%",
+        "analysis": "..."
+      }
     `;
-    const rawParsed = await getAIStrategy(parsePrompt);
-    let parsedAllocation = [];
-    try {
-        parsedAllocation = JSON.parse(rawParsed.replace(/```json|```/gi, '').trim());
-    } catch (e) {
-        return res.status(500).json({ error: 'Failed to parse strategy allocation.' });
-    }
 
-    // Step 2: Fetch actual historical data and compute exact returns
-    const endDate = new Date();
-    const startDate = new Date();
-    startDate.setFullYear(endDate.getFullYear() - horizonYears);
-
-    let totalSimulatedValue = 0;
-    const finalAllocation = [];
-
-    for (const alloc of parsedAllocation) {
-        let ret = 0;
-        try {
-            const chart = await yahooFinance.chart(alloc.symbol, {
-                period1: startDate.toISOString().split('T')[0],
-                period2: endDate.toISOString().split('T')[0],
-                interval: '1mo'
-            });
-            const quotes = chart.quotes.filter(q => q.close != null);
-            if (quotes.length > 0) {
-                const first = quotes[0].close;
-                const last = quotes[quotes.length - 1].close;
-                ret = (last - first) / first;
-            }
-        } catch (e) {
-            console.warn(`[Custom Backtest] Could not fetch history for ${alloc.symbol}, assuming 0% return.`);
-        }
-        
-        const allocatedAmount = (alloc.weight / 100) * investAmount;
-        const finalAmount = allocatedAmount * (1 + ret);
-        totalSimulatedValue += finalAmount;
-        
-        finalAllocation.push({
-            name: alloc.symbol,
-            displayName: alloc.name || alloc.symbol,
-            weight: alloc.weight
-        });
-    }
-
-    // Handle edge case where totalSimulatedValue is 0 (e.g. all fetches failed)
-    if (totalSimulatedValue === 0 && finalAllocation.length > 0) {
-        totalSimulatedValue = investAmount; 
-    }
-
-    // Calculate CAGR
-    let cagr = 0;
-    if (totalSimulatedValue > 0 && investAmount > 0) {
-        cagr = (((totalSimulatedValue / investAmount) ** (1 / horizonYears)) - 1) * 100;
-    }
-
-    // Step 3: Ask AI for an analysis of the exact historical performance
-    const analysisPrompt = `
-      Persona: Senior Quantitative Analyst.
-      Write a 2-3 sentence analysis of an Indian stock portfolio that had an initial investment of ₹${investAmount} and is now worth ₹${Math.round(totalSimulatedValue)} over ${horizonYears} years (CAGR: ${cagr.toFixed(2)}%).
-      Portfolio Allocation: ${JSON.stringify(finalAllocation)}
-      Task: Briefly mention how this specific portfolio performed, assess its historical drawdown risk, and note any major drags or drivers based on the final computed CAGR.
-      Return plain text only, no markdown.
-    `;
-    const analysis = await getAIStrategy(analysisPrompt);
-
-    res.json({
-      parsedAllocation: finalAllocation,
-      historicalValue: Math.round(totalSimulatedValue),
-      historicalCAGR: `${cagr > 0 ? '+' : ''}${cagr.toFixed(2)}%`,
-      analysis: analysis.trim()
-    });
-
+    const rawResponse = await getAIStrategy(prompt);
+    const parsed = JSON.parse(rawResponse);
+    res.json(parsed);
   } catch (error) {
     console.error('[Custom Backtest] Error:', error.message);
     res.status(500).json({ error: 'Failed to run custom strategy backtest.' });
