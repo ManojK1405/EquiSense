@@ -1,12 +1,17 @@
 import { io } from '../server.js';
 import { KiteTicker } from 'kiteconnect';
-import { PrismaClient } from '@prisma/client';
+import prisma from './prisma.js';
 import cron from 'node-cron';
+import YahooFinance from 'yahoo-finance2';
 
-const prisma = new PrismaClient();
+const yahooFinance = new YahooFinance({ 
+    suppressNotices: ['yahooSurvey'],
+    validation: { logErrors: false }
+});
 
 // Keep track of active tickers to avoid duplicate connections
 const activeTickers = new Map();
+const activeMockTickers = new Map();
 
 // Schedule cleanup at 5:55 AM IST daily (00:25 UTC)
 cron.schedule('25 0 * * *', () => {
@@ -14,15 +19,40 @@ cron.schedule('25 0 * * *', () => {
   activeTickers.forEach((ticker, userId) => {
       try {
         ticker.disconnect();
-        console.log(`Disconnected ticker for user ${userId}`);
-      } catch (e) {
-        console.error(`Error disconnecting ticker for user ${userId}:`, e.message);
-      }
+      } catch (e) {}
   });
   activeTickers.clear();
+
+  activeMockTickers.forEach((interval, userId) => {
+      clearInterval(interval);
+  });
+  activeMockTickers.clear();
 }, {
   timezone: "UTC"
 });
+
+// Periodic cleanup of orphaned tickers (no listeners AND no AI Pilot)
+setInterval(async () => {
+    for (const [userId, ticker] of activeTickers.entries()) {
+        const room = io.sockets.adapter.rooms.get(`user_${userId}`);
+        const user = await prisma.user.findUnique({ where: { id: userId }, select: { autoPilotLive: true } });
+        if (!room && !user?.autoPilotLive) {
+            console.log(`[Socket] Cleaning up orphaned LIVE ticker for user ${userId}`);
+            ticker.disconnect();
+            activeTickers.delete(userId);
+        }
+    }
+
+    for (const [userId, interval] of activeMockTickers.entries()) {
+        const room = io.sockets.adapter.rooms.get(`user_mock_${userId}`);
+        const user = await prisma.user.findUnique({ where: { id: userId }, select: { autoPilotMock: true } });
+        if (!room && !user?.autoPilotMock) {
+            console.log(`[Socket] Cleaning up orphaned MOCK ticker for user ${userId}`);
+            clearInterval(interval);
+            activeMockTickers.delete(userId);
+        }
+    }
+}, 5 * 60 * 1000); // Every 5 minutes
 
 export const setupSocketHandlers = () => {
   io.on('connection', (socket) => {
@@ -32,7 +62,7 @@ export const setupSocketHandlers = () => {
       const { userId, symbols } = data;
       if (!userId) return;
 
-      console.log(`User ${userId} subscribing to symbols:`, symbols);
+      socket.userId = userId;
       socket.join(`user_${userId}`);
 
       const user = await prisma.user.findUnique({ where: { id: userId } });
@@ -41,10 +71,50 @@ export const setupSocketHandlers = () => {
       }
     });
 
+    socket.on('subscribe_mock_data', (data) => {
+      const { userId, symbols } = data;
+      if (!userId || !symbols || !symbols.length) return;
+      
+      socket.userId = userId;
+      socket.join(`user_mock_${userId}`);
+      
+      startMockTicker(userId, symbols);
+    });
+
     socket.on('disconnect', () => {
       console.log('User disconnected from socket:', socket.id);
+      // We no longer kill tickers immediately on disconnect. 
+      // The background cleanup job will handle it if the user doesn't return or doesn't have AI active.
     });
   });
+};
+
+const startMockTicker = (userId, symbols) => {
+  if (activeMockTickers.has(userId)) return; // Already running
+  
+  const emitQuotes = async () => {
+     try {
+         // Optimization: Only fetch if there are listeners or AI is active
+         const room = io.sockets.adapter.rooms.get(`user_mock_${userId}`);
+         const user = await prisma.user.findUnique({ where: { id: userId }, select: { autoPilotMock: true } });
+         
+         if (!room && !user?.autoPilotMock) return; // Silent skip, cleanup job will kill later
+
+         const quotes = await Promise.all(symbols.map(s => yahooFinance.quote(s).catch(() => null)));
+         const ticks = quotes.filter(q => q).map(q => ({
+             instrument_token: q.symbol, 
+             last_price: q.regularMarketPrice,
+             change_percent: q.regularMarketChangePercent
+         }));
+         io.to(`user_mock_${userId}`).emit('mock_ticks', ticks);
+     } catch (e) {
+         console.error('Mock Ticker error:', e.message);
+     }
+  };
+  
+  emitQuotes(); // initial fetch
+  const interval = setInterval(emitQuotes, 15000); // Push updates every 15 seconds
+  activeMockTickers.set(userId, interval);
 };
 
 const startZerodhaTicker = (userId, apiKey, accessToken, symbols) => {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Brain, Sparkles, Zap, TrendingUp, ShieldCheck, Layers, Share2, Download, RefreshCw, Save, History, PlayCircle, ShieldAlert } from 'lucide-react';
+import { Brain, Sparkles, Zap, TrendingUp, ShieldCheck, Layers, Share2, Download, RefreshCw, Save, History, PlayCircle, ShieldAlert, Trash2, ArrowRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import api from '../api';
 import FeatureLock from '../components/feature-lock';
@@ -13,7 +13,7 @@ const formatINR = (val) => {
 };
 
 const AIStrategist = () => {
-    const { user } = useAuth();
+    const { user, refreshUser } = useAuth();
     const [loading, setLoading] = useState(false);
     const [mandate, setMandate] = useState({
         amount: '500000',
@@ -27,6 +27,27 @@ const AIStrategist = () => {
     const [executionMode, setExecutionMode] = useState('mock'); // mock | live
     const [executing, setExecuting] = useState(false);
     const [showConfirmModal, setShowConfirmModal] = useState(false);
+    const [activeTab, setActiveTab] = useState('generate'); // generate | saved
+    const [savedStrategies, setSavedStrategies] = useState([]);
+    const [loadingSaved, setLoadingSaved] = useState(false);
+
+    useEffect(() => {
+        if (activeTab === 'saved') {
+            fetchSavedStrategies();
+        }
+    }, [activeTab]);
+
+    const fetchSavedStrategies = async () => {
+        setLoadingSaved(true);
+        try {
+            const res = await api.get('/portfolio/saved-strategies');
+            setSavedStrategies(res.data);
+        } catch (e) {
+            toast.error('Failed to fetch saved strategies');
+        } finally {
+            setLoadingSaved(false);
+        }
+    };
 
     const runBacktest = async () => {
         if (!strategy) return;
@@ -62,18 +83,29 @@ const AIStrategist = () => {
         }
     };
 
-    const saveStrategyToDB = async (strategyData) => {
+    const saveStrategyToDB = async (strategyData, isAuto = false) => {
         try {
-            await api.post('/strategy/save', {
-                name: strategyData.strategyTitle,
+            await api.post('/portfolio/save-strategy', {
+                name: strategyData.strategyTitle || `Strategy ${new Date().toLocaleDateString()}`,
                 description: strategyData.summary,
-                strategyData,
+                data: strategyData,
                 isPublic: false
             });
-            toast.success('Strategy saved to your vault.');
+            if (!isAuto) toast.success('Strategy saved to your vault.');
+            if (activeTab === 'saved') fetchSavedStrategies();
         } catch (e) {
             console.error('Save error', e);
-            toast.error('Failed to save strategy.');
+            if (!isAuto) toast.error('Failed to save strategy.');
+        }
+    };
+
+    const deleteStrategy = async (id) => {
+        try {
+            await api.delete(`/portfolio/saved-strategies/${id}`);
+            toast.success('Strategy deleted');
+            fetchSavedStrategies();
+        } catch (e) {
+            toast.error('Failed to delete strategy');
         }
     };
 
@@ -101,6 +133,7 @@ const AIStrategist = () => {
             } else {
                 toast.success(res.data.message || 'Strategy Deployed Successfully!', { icon: '🚀' });
             }
+            refreshUser();
         } catch (e) {
             toast.error(e.response?.data?.error || 'Deployment Failed. Verify funds and connection.');
         } finally {
@@ -218,7 +251,27 @@ const AIStrategist = () => {
                                 AI <span className="text-premium italic">Strategist</span>
                             </h1>
 
-                            {/* Mandate Form */}
+                            {/* Tabs */}
+                            <div className="flex bg-slate-100 p-1.5 rounded-[24px] mb-10 border border-slate-200/50">
+                                <button 
+                                    onClick={() => setActiveTab('generate')}
+                                    className={`flex-1 flex items-center justify-center gap-3 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'generate' ? 'bg-white text-slate-900 shadow-xl' : 'text-slate-400 hover:text-slate-600'}`}
+                                >
+                                    <Sparkles className="w-4 h-4" />
+                                    Generate New
+                                </button>
+                                <button 
+                                    onClick={() => setActiveTab('saved')}
+                                    className={`flex-1 flex items-center justify-center gap-3 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'saved' ? 'bg-white text-slate-900 shadow-xl' : 'text-slate-400 hover:text-slate-600'}`}
+                                >
+                                    <History className="w-4 h-4" />
+                                    Saved Vault
+                                </button>
+                            </div>
+
+                            {activeTab === 'generate' ? (
+                                <>
+                                    {/* Mandate Form */}
                             <div className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-xl space-y-8 relative overflow-hidden">
                                 <div className="absolute top-0 right-0 w-32 h-32 bg-rose-50/50 blur-3xl rounded-full -mr-16 -mt-16" />
 
@@ -320,6 +373,72 @@ const AIStrategist = () => {
                                     {loading ? 'Architecting...' : 'Generate Plan'}
                                 </button>
                             </div>
+                                </>
+                            ) : (
+                                <div className="space-y-6">
+                                    {loadingSaved ? (
+                                        <div className="py-20 flex flex-col items-center justify-center gap-4">
+                                            <RefreshCw className="w-10 h-10 text-slate-200 animate-spin" />
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Accessing Vault...</p>
+                                        </div>
+                                    ) : savedStrategies.length === 0 ? (
+                                        <div className="py-20 text-center bg-white rounded-[40px] border border-slate-100 shadow-sm">
+                                            <History className="w-12 h-12 text-slate-100 mx-auto mb-4" />
+                                            <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">No Saved Blueprints Found</p>
+                                        </div>
+                                    ) : (
+                                        savedStrategies.map((s, sidx) => (
+                                            <motion.div 
+                                                initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+                                                key={s.id || `saved-${sidx}`} 
+                                                className="bg-white p-8 rounded-[32px] border border-slate-100 shadow-sm hover:border-rose-200 hover:shadow-xl transition-all group relative overflow-hidden"
+                                            >
+                                                <div className="absolute top-0 right-0 w-24 h-24 bg-slate-50 rounded-bl-[40px] -mr-12 -mt-12 group-hover:bg-rose-50 transition-colors" />
+                                                
+                                                <div className="flex justify-between items-start mb-6 relative z-10">
+                                                    <div className="max-w-[70%]">
+                                                        <h4 className="font-black text-slate-900 text-lg tracking-tight uppercase italic mb-1">{s.name}</h4>
+                                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{new Date(s.createdAt).toLocaleDateString()}</p>
+                                                    </div>
+                                                    <button 
+                                                        onClick={() => deleteStrategy(s.id)}
+                                                        className="p-2 text-slate-300 hover:text-rose-500 transition-colors"
+                                                    >
+                                                        <Trash2 className="w-5 h-5" />
+                                                    </button>
+                                                </div>
+
+                                                <div className="flex gap-4 mb-6 relative z-10">
+                                                    <div className="px-4 py-3 bg-slate-50 rounded-2xl border border-slate-100">
+                                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Assets</p>
+                                                        <p className="font-black text-slate-900 text-sm">{s.data.allocation?.length || s.data.trades?.length || 0}</p>
+                                                    </div>
+                                                    <div className="px-4 py-3 bg-slate-50 rounded-2xl border border-slate-100">
+                                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Commitment</p>
+                                                        <p className="font-black text-emerald-600 text-sm">₹{Number(s.data.totalCapital || 0).toLocaleString()}</p>
+                                                    </div>
+                                                </div>
+
+                                                <button 
+                                                    onClick={() => {
+                                                        setStrategy(s.data);
+                                                        setMandate({
+                                                            ...mandate,
+                                                            amount: s.data.totalCapital?.toString() || mandate.amount
+                                                        });
+                                                        setActiveTab('generate');
+                                                        toast.success('Strategy Loaded into Terminal');
+                                                    }}
+                                                    className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-rose-600 transition-all flex items-center justify-center gap-3"
+                                                >
+                                                    Load into Terminal
+                                                    <ArrowRight className="w-4 h-4" />
+                                                </button>
+                                            </motion.div>
+                                        ))
+                                    )}
+                                </div>
+                            )}
                         </motion.div>
                     </div>
 
@@ -401,6 +520,7 @@ const AIStrategist = () => {
                                                                     <p className="font-black text-emerald-600 text-2xl">{strategy.projectedReturnRange}</p>
                                                                 </div>
                                                                 {(() => {
+                                                                    if (!strategy?.projectedReturnRange) return null;
                                                                     const matches = strategy.projectedReturnRange.match(/\d+(\.\d+)?/g);
                                                                     if (!matches || matches.length === 0) return null;
                                                                     const avgRate = (matches.reduce((a, b) => a + parseFloat(b), 0) / matches.length) / 100;

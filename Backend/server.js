@@ -1,8 +1,9 @@
 import express from 'express';
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
 import dotenv from 'dotenv';
 import { createServer } from 'http';
-import { PrismaClient } from '@prisma/client';
+import prisma from './utils/prisma.js';
 import { Server } from 'socket.io';
 
 const app = express();
@@ -27,7 +28,6 @@ import newsletterRoutes from './routes/newsletter.routes.js';
 
 dotenv.config();
 
-const prisma = new PrismaClient();
 const PORT = process.env.PORT || 5001;
 
 // Import other deps after dotenv
@@ -39,8 +39,12 @@ const yahooFinance = new YahooFinance({
 import cron from 'node-cron';
 
 // Middlewares
-app.use(cors());
+app.use(cors({
+    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+    credentials: true
+}));
 app.use(express.json());
+app.use(cookieParser());
 
 // Basic Route
 app.get('/', (req, res) => {
@@ -61,9 +65,11 @@ app.use('/api/newsletter', newsletterRoutes);
 import { processPendingQueue } from './controllers/portfolio.controller.js';
 import { setupSocketHandlers } from './utils/socket.js';
 import { startAutoPilotService } from './services/autopilot.service.js';
+import { startReportService } from './services/report.service.js';
 
 setupSocketHandlers();
 startAutoPilotService();
+startReportService();
 
 // Market hours check every 5 minutes
 cron.schedule('*/5 * * * *', async () => {

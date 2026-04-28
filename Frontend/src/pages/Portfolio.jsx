@@ -3,36 +3,40 @@ import {
     LayoutDashboard, Plus, Trash2, ArrowUpRight, ArrowDownRight, 
     Briefcase, Activity, Target, ShieldAlert, Zap, Clock, CheckCircle2, 
     AlertCircle, Wallet, Brain, Sparkles, X, Filter, History as HistoryIcon,
-    ChevronRight, SkipForward, Play, Pause, Search, Info, TrendingUp, PieChart as PieIcon, ShieldCheck
+    ChevronRight, SkipForward, Play, Pause, Search, Info, TrendingUp, PieChart as PieIcon, ShieldCheck, Bot, FileText, Eye, PowerOff, Loader2, Shield
 } from 'lucide-react';
 import api from '../api';
 import { motion, AnimatePresence } from 'framer-motion';
-import { io } from 'socket.io-client';
 import { useAuth } from '../context/AuthContext';
+import { useSocket } from '../context/SocketContext';
 import FeatureLock from '../components/feature-lock';
 import { toast } from 'react-hot-toast';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { PortfolioSkeleton } from '../components/skeleton';
 
-const COLORS = ['#0f172a', '#ea580c', '#64748b', '#94a3b8', '#cbd5e1'];
+const COLORS = ['#0f172a', '#ea580c', '#64748b', '#94a3b8', '#cbd5e1', '#334155', '#475569', '#1e293b', '#f97316', '#fb923c'];
 
 const Portfolio = () => {
-    const { user } = useAuth();
+    const { user, refreshUser } = useAuth();
     const [watchlist, setWatchlist] = useState([]);
+    const [watchlistSymbol, setWatchlistSymbol] = useState('');
+    const [searchSuggestions, setSearchSuggestions] = useState([]);
+    const [isSearching, setIsSearching] = useState(false);
     const [portfolio, setPortfolio] = useState([]);
     const [tradeQueue, setTradeQueue] = useState([]);
     const [tradeLogs, setTradeLogs] = useState([]);
     const [mockBalance, setMockBalance] = useState(0);
+    const [settlementBalance, setSettlementBalance] = useState(0);
     const [autoPilot, setAutoPilot] = useState(false);
     const [loading, setLoading] = useState(true);
     const [showAddModal, setShowAddModal] = useState(false);
     const [showTopUpModal, setShowTopUpModal] = useState(false);
     const [showDetailModal, setShowDetailModal] = useState(null);
     const [showModeConfirm, setShowModeConfirm] = useState(false);
-    const [mode, setMode] = useState('mock'); 
+    const [mode, setMode] = useState(localStorage.getItem('tradingMode') || 'mock'); 
     const [newItem, setNewItem] = useState({ symbol: '', quantity: '', type: 'BUY' });
     const [topUpAmount, setTopUpAmount] = useState('');
-    const [socket, setSocket] = useState(null);
+    const socket = useSocket();
     const [queueTab, setQueueTab] = useState('upcoming'); // upcoming | history
     const [showExecuteConfirm, setShowExecuteConfirm] = useState(false);
     const [pendingExecution, setPendingExecution] = useState(null);
@@ -40,29 +44,43 @@ const Portfolio = () => {
     const [brokerOrders, setBrokerOrders] = useState([]);
     const [activeTab, setActiveTab] = useState('portfolio'); // portfolio | analysis | orders
     const [selectedBroker, setSelectedBroker] = useState('zerodha');
-    const [brokerCredentials, setBrokerCredentials] = useState({ apiKey: '', apiSecret: '', requestToken: '' });
     const [showBrokerModal, setShowBrokerModal] = useState(false);
     const [marketOpen, setMarketOpen] = useState(false);
+    const [showPilotModal, setShowPilotModal] = useState(false);
+    const [showDisengageModal, setShowDisengageModal] = useState(false);
+    const [pilotConfig, setPilotConfig] = useState({ mode: 'full', limit: '5000' });
+    const [isAnalyzing, setIsAnalyzing] = useState(false);
+    const [isAnalyzingPortfolio, setIsAnalyzingPortfolio] = useState(false);
+    const [portfolioReport, setPortfolioReport] = useState(null);
+    const [dailyReports, setDailyReports] = useState([]);
 
-    const fetchData = async () => {
+    const fetchData = async (overrideMode = null) => {
+        const activeMode = overrideMode || mode;
         try {
             setLoading(true);
-            const [watchlistRes, portfolioRes, queueRes, logsRes, marketStatusRes, ordersRes] = await Promise.all([
+            const [watchlistRes, portfolioRes, queueRes, logsRes, marketStatusRes, ordersRes, reportsRes] = await Promise.all([
                 api.get('/portfolio/watchlist'),
-                api.get(`/portfolio/portfolio?mode=${mode}`),
+                api.get(`/portfolio/portfolio?mode=${activeMode}`),
                 api.get('/portfolio/queue'),
                 api.get('/portfolio/logs'),
                 api.get('/market/status'),
-                api.get('/portfolio/orders')
+                api.get('/portfolio/orders'),
+                api.get('/portfolio/reports')
             ]);
             setWatchlist(watchlistRes.data);
             setPortfolio(portfolioRes.data.items || []);
             setMockBalance(portfolioRes.data.mockBalance || 0);
-            setAutoPilot(portfolioRes.data.autoPilot || false);
+            setSettlementBalance(portfolioRes.data.settlementBalance || 0);
+            
+            // Set local autopilot state based on current mode
+            const isPilotActive = activeMode === 'live' ? portfolioRes.data.autoPilotLive : portfolioRes.data.autoPilotMock;
+            setAutoPilot(isPilotActive);
+            
             setTradeQueue(queueRes.data);
             setTradeLogs(logsRes.data);
             setBrokerOrders(ordersRes.data || []);
             setMarketOpen(marketStatusRes.data.isOpen);
+            setDailyReports(reportsRes.data || []);
         } catch (error) {
             console.error('Error fetching data:', error);
         } finally {
@@ -72,8 +90,6 @@ const Portfolio = () => {
 
     useEffect(() => {
         fetchData();
-        const interval = setInterval(fetchData, 30000); 
-        return () => clearInterval(interval);
     }, [mode]);
 
     useEffect(() => {
@@ -82,18 +98,6 @@ const Portfolio = () => {
         }
     }, [user]);
 
-    useEffect(() => {
-        const newSocket = io('http://localhost:5001', {
-            reconnection: true,
-            reconnectionAttempts: 5,
-            reconnectionDelay: 1000,
-        });
-        
-        setSocket(newSocket);
-        return () => {
-            newSocket.disconnect();
-        };
-    }, []);
 
     useEffect(() => {
         if (!socket) return;
@@ -102,14 +106,26 @@ const Portfolio = () => {
         if (!userId) return;
 
         const handleConnect = () => {
-            const symbols = [
-                ...new Set([
-                    ...watchlist.map(i => i.stock.symbol.split('.')[0]),
-                    ...portfolio.map(i => i.stock.symbol.split('.')[0])
-                ])
-            ];
-            if (symbols.length > 0) {
-                socket.emit('subscribe_live_data', { userId, symbols });
+            if (mode === 'live') {
+                const symbols = [
+                    ...new Set([
+                        ...watchlist.map(i => i.stock.symbol.split('.')[0]),
+                        ...portfolio.map(i => i.stock.symbol.split('.')[0])
+                    ])
+                ];
+                if (symbols.length > 0) {
+                    socket.emit('subscribe_live_data', { userId, symbols });
+                }
+            } else {
+                const symbols = [
+                    ...new Set([
+                        ...watchlist.map(i => i.stock.symbol),
+                        ...portfolio.map(i => i.stock.symbol)
+                    ])
+                ];
+                if (symbols.length > 0) {
+                    socket.emit('subscribe_mock_data', { userId, symbols });
+                }
             }
         };
 
@@ -120,6 +136,7 @@ const Portfolio = () => {
         socket.on('connect', handleConnect);
         
         socket.on('live_ticks', (ticks) => {
+            if (mode !== 'live') return;
             setPortfolio(prev => prev.map(item => {
                 const tick = ticks.find(t => t.tradingsymbol === item.stock.symbol.split('.')[0]);
                 if (tick) {
@@ -136,19 +153,49 @@ const Portfolio = () => {
             }));
         });
 
-        return () => {
-            socket.off('live_ticks');
-        };
-    }, [socket, watchlist.length, portfolio.length]);
-
-    const sectorData = useMemo(() => {
-        const sectors = {};
-        portfolio.forEach(item => {
-            const s = item.stock.sector || 'Others';
-            sectors[s] = (sectors[s] || 0) + (item.quantity * (item.currentPrice || item.avgPrice || 0));
+        socket.on('mock_ticks', (ticks) => {
+            if (mode !== 'mock') return;
+            setPortfolio(prev => prev.map(item => {
+                const tick = ticks.find(t => t.instrument_token === item.stock.symbol);
+                if (tick) {
+                    const currentVal = tick.last_price * item.quantity;
+                    const pnl = currentVal - item.totalCost;
+                    return { 
+                        ...item, 
+                        currentPrice: tick.last_price,
+                        pnl: pnl,
+                        pnlPercent: (pnl / item.totalCost) * 100
+                    };
+                }
+                return item;
+            }));
         });
-        return Object.entries(sectors).map(([name, value]) => ({ name, value }));
+
+        return () => {
+            socket.off('connect', handleConnect);
+            socket.off('live_ticks');
+            socket.off('mock_ticks');
+        };
+    }, [socket, portfolio.length, watchlist.length, mode]);
+
+    const distributionData = useMemo(() => {
+        const stocks = {};
+        portfolio.forEach(item => {
+            const name = item.stock.symbol.split('.')[0]; // Clean symbol (e.g., RELIANCE from RELIANCE.NS)
+            stocks[name] = (stocks[name] || 0) + (item.quantity * (item.currentPrice || item.avgPrice || 0));
+        });
+        return Object.entries(stocks)
+            .map(([name, value]) => ({ name, value }))
+            .sort((a, b) => b.value - a.value); // Sort by value desc
     }, [portfolio]);
+
+    const colorMap = useMemo(() => {
+        const map = {};
+        distributionData.forEach((item, idx) => {
+            map[item.name] = COLORS[idx % COLORS.length];
+        });
+        return map;
+    }, [distributionData]);
 
     const calculateTotalPnL = () => {
         let totalInvested = 0;
@@ -164,14 +211,74 @@ const Portfolio = () => {
 
     const { pnl: totalPnL, pnlPercent: totalPnLPercent, totalCurrent, totalInvested } = calculateTotalPnL();
 
-    const pieData = useMemo(() => {
-        if (portfolio.length === 0) return [{ name: 'Cash', value: mockBalance }];
-        const assets = portfolio.map(item => ({
-            name: item.stock.symbol,
-            value: (item.currentPrice || item.avgPrice || 0) * item.quantity
-        }));
-        return [...assets, { name: 'Cash', value: mockBalance }];
-    }, [portfolio, mockBalance]);
+    const handleDelete = async (id) => {
+        if (!window.confirm('Terminate this position?')) return;
+        try {
+            const res = await api.delete(`/portfolio/portfolio/${id}`);
+            if (res.data.isQueued) {
+                toast.success('Market Closed: Sell order queued');
+            } else {
+                toast.success('Position Liquidated');
+            }
+            fetchData();
+        } catch (error) {
+            toast.error('Liquidation Failed');
+        }
+    };
+
+    const addToWatchlist = async (e) => {
+        e.preventDefault();
+        try {
+            await api.post('/portfolio/watchlist', { symbol: watchlistSymbol.toUpperCase() });
+            toast.success('Added to watchlist');
+            setWatchlistSymbol('');
+            fetchData();
+        } catch (error) {
+            toast.error('Failed to add ticker');
+        }
+    };
+
+    const removeFromWatchlist = async (id) => {
+        try {
+            await api.delete(`/portfolio/watchlist/${id}`);
+            fetchData();
+        } catch (error) {
+            toast.error('Failed to remove');
+        }
+    };
+
+    // SEARCH LOGIC
+    useEffect(() => {
+        const delayDebounceFn = setTimeout(async () => {
+            if (watchlistSymbol.length >= 2) {
+                setIsSearching(true);
+                try {
+                    const res = await api.get(`/market/search?q=${watchlistSymbol}`);
+                    setSearchSuggestions(res.data.slice(0, 5));
+                } catch (e) {
+                    console.error('Search error', e);
+                } finally {
+                    setIsSearching(false);
+                }
+            } else {
+                setSearchSuggestions([]);
+            }
+        }, 300);
+
+        return () => clearTimeout(delayDebounceFn);
+    }, [watchlistSymbol]);
+
+    const selectFromSearch = async (symbol) => {
+        try {
+            await api.post('/portfolio/watchlist', { symbol });
+            toast.success(`${symbol} Added`);
+            setWatchlistSymbol('');
+            setSearchSuggestions([]);
+            fetchData();
+        } catch (error) {
+            toast.error('Failed to add ticker');
+        }
+    };
 
     const handleMockOrder = async (e) => {
         e.preventDefault();
@@ -218,14 +325,80 @@ const Portfolio = () => {
     };
 
     const toggleAI = async () => {
+        const isCurrentlyActive = mode === 'live' ? user?.autoPilotLive : user?.autoPilotMock;
+        if (!isCurrentlyActive) {
+            setShowPilotModal(true);
+            return;
+        } else {
+            setShowDisengageModal(true);
+        }
+    };
+
+    const confirmAIDisable = async () => {
         try {
-            const newState = !autoPilot;
-            await api.post('/portfolio/autopilot/toggle', { enabled: newState });
-            setAutoPilot(newState);
-            toast.success(`EquiTrade AI Pilot ${newState ? 'Engaged' : 'Disengaged'}`);
+            await api.post('/portfolio/autopilot/toggle', { enabled: false, mode: mode });
+            toast.success(`AI Pilot (${mode.toUpperCase()}) Disengaged`);
+            setShowDisengageModal(false);
+            refreshUser();
+        } catch (error) {
+            toast.error('Failed to disable AI Pilot');
+        }
+    };
+
+    const confirmAIEnable = async () => {
+        try {
+            const limit = pilotConfig.mode === 'specific' ? pilotConfig.limit : null;
+            await api.post('/portfolio/autopilot/toggle', { 
+                enabled: true, 
+                mode: mode,
+                limit: limit
+            });
+            setShowPilotModal(false);
+            toast.success(`EquiTrade AI (${mode.toUpperCase()}) Engaged`, { icon: '🚀' });
+            refreshUser();
+        } catch (error) {
+            toast.error('AI Control Activation Failed');
+        }
+    };
+
+    const handleFullEngagement = async () => {
+        setIsAnalyzing(true);
+        // Automatically deploy 70% of the vault capital in Mock Mode
+        const amount = mode === 'mock' 
+            ? Math.floor((user?.mockBalance || 10000) * 0.70)
+            : (pilotConfig.mode === 'specific' ? pilotConfig.limit : user?.mockBalance || 10000);
+        
+        try {
+            const res = await api.post('/portfolio/autopilot/engage-full', { 
+                amount,
+                riskLevel: 'moderate',
+                sector: 'any',
+                mode: mode
+            });
+            setShowPilotModal(false);
+            toast.success(`Deployment Successful: ${res.data.deployed.length} assets acquired in ${mode.toUpperCase()} mode.`, { 
+                icon: '🚀',
+                duration: 6000 
+            });
+            refreshUser();
             fetchData();
         } catch (error) {
-            toast.error('AI Control Toggle Failed');
+            toast.error(error.response?.data?.error || 'Full Engagement Failed');
+        } finally {
+            setIsAnalyzing(false);
+        }
+    };
+
+    const runPortfolioAnalysis = async () => {
+        setIsAnalyzingPortfolio(true);
+        try {
+            const res = await api.get('/portfolio/analyze');
+            setPortfolioReport(res.data.analysis);
+            toast.success('Institutional Analysis Generated', { icon: '📊' });
+        } catch (error) {
+            toast.error('Analysis Generation Failed');
+        } finally {
+            setIsAnalyzingPortfolio(false);
         }
     };
 
@@ -248,35 +421,12 @@ const Portfolio = () => {
         }
     };
 
-    const handleExecuteQueue = async (trade) => {
-        if (mode === 'live') {
-            setPendingExecution(trade);
-            setShowExecuteConfirm(true);
-        } else {
-            // In mock mode, we just trigger it (backend logic for immediate mock exec could be added)
-            // For now, let's treat it as a re-queue/retry
-            try {
-                await api.post(`/portfolio/queue/retry/${trade.id}`);
-                toast.success('Trade re-queued for execution');
-                fetchData();
-            } catch (e) {
-                toast.error('Failed to execute trade');
-            }
-        }
-    };
-
     const confirmAndExecute = async () => {
         if (!pendingExecution) return;
         setShowExecuteConfirm(false);
         const trade = pendingExecution;
         
         try {
-            // We use the execute-strategy endpoint or retry endpoint
-            // Since execute-strategy handles the isMarketOpen check and immediate execution,
-            // let's use a specialized manual execute endpoint if available, or just retry.
-            // For Live mode, retry will set it to PENDING and the background processor will pick it up,
-            // OR we can call the execute-strategy with the same trades.
-            
             const res = await api.post('/portfolio/execute-strategy', {
                 mode: 'live',
                 trades: trade.trades.map(t => ({ name: t.symbol, amount: t.amount || (t.quantity * t.price), quantity: t.quantity })),
@@ -286,7 +436,6 @@ const Portfolio = () => {
             if (res.data.isQueued) {
                 toast.success('Market is closed. Trade remains in queue.', { icon: '⏳' });
             } else {
-                // If it executed, we should remove it from the queued trades
                 await api.delete(`/portfolio/queue/${trade.id}`);
                 toast.success('Order transmitted to broker!', { icon: '🚀' });
             }
@@ -316,7 +465,7 @@ const Portfolio = () => {
                         <p className="text-slate-500 font-bold uppercase tracking-widest text-[10px] pl-1">Institutional Wealth Terminal</p>
                     </div>
 
-                    <div className="flex flex-wrap items-center justify-end gap-4">
+                    <div className="flex items-center justify-end gap-3 flex-nowrap">
                         <div className="flex bg-slate-100 p-1.5 rounded-2xl border border-slate-200 shrink-0">
                             <button 
                                 onClick={() => {
@@ -352,7 +501,7 @@ const Portfolio = () => {
                             </div>
                         )}
 
-                        <div className={`flex items-center gap-4 px-6 py-4 rounded-[24px] border transition-all shadow-sm shrink-0 ${marketOpen ? 'bg-emerald-50 border-emerald-100' : 'bg-amber-50 border-amber-100'}`}>
+                        <div className={`flex items-center gap-3 px-5 py-3.5 rounded-[24px] border transition-all shadow-sm shrink-0 ${marketOpen ? 'bg-emerald-50 border-emerald-100' : 'bg-amber-50 border-amber-100'}`}>
                             <div className={`w-3 h-3 rounded-full ${marketOpen ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
                             <div className="flex flex-col">
                                 <span className={`text-[10px] font-black uppercase tracking-widest ${marketOpen ? 'text-emerald-600' : 'text-amber-600'}`}>
@@ -362,16 +511,23 @@ const Portfolio = () => {
                             </div>
                         </div>
 
-                        <div className="bg-white border border-slate-200 px-8 py-4 rounded-[24px] shadow-sm flex flex-col justify-center min-w-[200px] shrink-0">
+                        <div className="bg-white border border-slate-200 px-6 py-3.5 rounded-[24px] shadow-sm flex flex-col justify-center min-w-[180px] shrink-0">
                             <p className="text-[10px] uppercase font-black text-slate-400 tracking-widest mb-1 flex items-center gap-2">
                                 <Wallet className="w-3 h-3 text-orange-600" />
                                 Available Funds
                             </p>
-                            <div className="flex items-center justify-between">
-                                <p className="text-2xl font-black text-slate-900 tracking-tight">₹{mockBalance.toLocaleString()}</p>
+                            <div className="flex items-center justify-between gap-3">
+                                <div className="flex flex-col">
+                                    <p className="text-xl font-black text-slate-900 tracking-tight">₹{mockBalance.toLocaleString()}</p>
+                                    {mode === 'mock' && settlementBalance > 0 && (
+                                        <p className="text-[7px] font-black text-rose-500 uppercase tracking-widest mt-0.5">
+                                            ₹{settlementBalance.toLocaleString()} Blocked (T+1)
+                                        </p>
+                                    )}
+                                </div>
                                 {mode === 'mock' && (
-                                    <button onClick={() => setShowTopUpModal(true)} className="p-2 bg-orange-50 hover:bg-orange-600 hover:text-white rounded-full text-orange-600 transition-all active:scale-90 shadow-sm">
-                                        <Plus className="w-4 h-4" />
+                                    <button onClick={() => setShowTopUpModal(true)} className="p-1.5 bg-orange-50 hover:bg-orange-600 hover:text-white rounded-full text-orange-600 transition-all active:scale-90 shadow-sm">
+                                        <Plus className="w-3 h-3" />
                                     </button>
                                 )}
                             </div>
@@ -379,12 +535,17 @@ const Portfolio = () => {
 
                         <button 
                             onClick={toggleAI}
-                            className={`px-10 py-5 rounded-[24px] font-black text-[10px] uppercase tracking-[0.2em] transition-all flex items-center gap-4 shadow-xl active:scale-95 shrink-0 ${autoPilot ? 'bg-orange-600 text-white shadow-orange-500/30' : 'bg-slate-900 text-white shadow-slate-900/30'}`}
+                            className={`px-8 py-3.5 rounded-[24px] font-black text-[10px] uppercase tracking-[0.2em] transition-all flex items-center gap-4 shadow-xl active:scale-95 shrink-0 ${autoPilot ? 'bg-orange-600 text-white shadow-orange-500/30' : 'bg-slate-900 text-white shadow-slate-900/30'}`}
                         >
                             <div className={`p-1 rounded-full ${autoPilot ? 'bg-white text-orange-600 animate-pulse shadow-inner' : 'bg-orange-600 text-white'}`}>
                                 <Zap className="w-4 h-4 fill-current" />
                             </div>
-                            {autoPilot ? 'AI Pilot Engaged' : 'Engage EquiTrade'}
+                            <div className="text-left">
+                                <p className="leading-none mb-1">{autoPilot ? 'AI Pilot Engaged' : 'Engage EquiTrade'}</p>
+                                {autoPilot && (mode === 'live' ? user?.pilotLimitLive : user?.pilotLimitMock) && (
+                                    <p className="text-[8px] opacity-60 font-bold uppercase tracking-widest italic">Limit: ₹{(mode === 'live' ? user.pilotLimitLive : user.pilotLimitMock).toLocaleString()}</p>
+                                )}
+                            </div>
                         </button>
                     </div>
                 </header>
@@ -458,7 +619,7 @@ const Portfolio = () => {
                                                         onClick={() => setActiveTab('orders')}
                                                         className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'orders' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
                                                     >
-                                                        Audit Trail
+                                                        Orders
                                                     </button>
                                                 </div>
                                             </div>
@@ -481,26 +642,28 @@ const Portfolio = () => {
                                                         <tr className="bg-slate-50/40">
                                                             <th className="p-8 text-[10px] font-black text-slate-400 uppercase tracking-widest">Asset Identification</th>
                                                             <th className="p-8 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Volume</th>
-                                                            <th className="p-8 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Entry / Live Spot</th>
+                                                            <th className="p-8 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Live / Entry Spot</th>
                                                             <th className="p-8 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Profit Analysis</th>
                                                             <th className="p-8"></th>
                                                         </tr>
                                                     </thead>
                                                     <tbody className="divide-y divide-slate-50">
-                                                        {portfolio.map((item) => (
-                                                            <tr key={item.id} className="group hover:bg-slate-50/50 transition-all duration-300">
+                                                        {portfolio.map((item, pidx) => (
+                                                            <tr key={item.id || `portfolio-${pidx}`} className="group hover:bg-slate-50/50 transition-all duration-300">
                                                                 <td className="p-8">
                                                                     <div className="flex items-center gap-6">
-                                                                        <div className="w-16 h-16 rounded-[24px] bg-slate-900 flex items-center justify-center font-black text-white text-2xl shadow-xl shadow-slate-900/10 group-hover:scale-105 transition-transform">
+                                                                        <div 
+                                                                            className="w-16 h-16 rounded-[24px] flex items-center justify-center font-black text-white text-2xl shadow-xl transition-transform group-hover:scale-105"
+                                                                            style={{ 
+                                                                                backgroundColor: colorMap[item.stock.symbol.split('.')[0]] || '#0f172a',
+                                                                                boxShadow: `0 20px 40px -12px ${(colorMap[item.stock.symbol.split('.')[0]] || '#0f172a')}40` 
+                                                                            }}
+                                                                        >
                                                                             {item.stock.symbol[0]}
                                                                         </div>
                                                                         <div>
-                                                                            <p className="font-black text-slate-900 text-xl tracking-tighter">{item.stock.symbol}</p>
-                                                                            <div className="flex items-center gap-2 mt-1">
-                                                                                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{item.stock.sector || 'EQUITY'}</span>
-                                                                                <span className="w-1 h-1 rounded-full bg-slate-300" />
-                                                                                <span className="text-[10px] text-orange-500 font-bold uppercase tracking-widest">NSE</span>
-                                                                            </div>
+                                                                            <p className="font-black text-slate-900 text-xl tracking-tight uppercase">{item.stock.symbol}</p>
+                                                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Institutional Equity</p>
                                                                         </div>
                                                                     </div>
                                                                 </td>
@@ -509,30 +672,27 @@ const Portfolio = () => {
                                                                     <span className="block text-[9px] text-slate-300 font-black tracking-widest mt-1">UNITS</span>
                                                                 </td>
                                                                 <td className="p-8 text-right">
-                                                                    <p className="font-black text-slate-900 text-xl">₹{(item.avgPrice || item.averagePrice || 0).toLocaleString()}</p>
+                                                                    <p className="font-black text-slate-900 text-xl">₹{item.currentPrice?.toLocaleString() || '--'}</p>
                                                                     <div className="flex items-center justify-end gap-2 mt-1">
-                                                                        <div className="w-1.5 h-1.5 rounded-full bg-orange-600 animate-pulse" />
-                                                                        <p className="text-[10px] text-slate-400 font-black tracking-widest uppercase italic">Live: ₹{item.currentPrice?.toLocaleString() || '--'}</p>
+                                                                        <div className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                                                                        <p className="text-[10px] text-slate-400 font-black tracking-widest uppercase italic">Entry: ₹{(item.avgPrice || item.averagePrice || 0).toLocaleString()}</p>
                                                                     </div>
                                                                 </td>
                                                                 <td className="p-8 text-right">
-                                                                    <div className={`inline-flex items-center gap-2 font-black text-2xl tracking-tighter ${item.pnl >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                                                                        {item.pnl >= 0 ? <ArrowUpRight className="w-6 h-6" /> : <ArrowDownRight className="w-6 h-6" />}
-                                                                        ₹{Math.abs(item.pnl || 0).toLocaleString()}
-                                                                    </div>
-                                                                    <p className={`text-[10px] font-black mt-1 tracking-widest uppercase px-3 py-1 rounded-lg inline-block ml-auto ${item.pnl >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
-                                                                        {item.pnlPercent?.toFixed(2)}%
+                                                                    <p className={`text-xl font-black ${((item.currentPrice - (item.avgPrice || item.averagePrice)) * item.quantity) >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                                                        {((item.currentPrice - (item.avgPrice || item.averagePrice)) * item.quantity) >= 0 ? '+' : ''}₹{((item.currentPrice - (item.avgPrice || item.averagePrice)) * item.quantity).toLocaleString()}
+                                                                    </p>
+                                                                    <p className={`text-[9px] font-black uppercase tracking-widest mt-1 ${((item.currentPrice - (item.avgPrice || item.averagePrice)) / (item.avgPrice || item.averagePrice)) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                                                        {(((item.currentPrice - (item.avgPrice || item.averagePrice)) / (item.avgPrice || item.averagePrice)) * 100).toFixed(2)}% Performance
                                                                     </p>
                                                                 </td>
                                                                 <td className="p-8 text-right">
                                                                     <button 
-                                                                        onClick={() => {
-                                                                            setNewItem({ symbol: item.stock.symbol, quantity: item.quantity, type: 'SELL' });
-                                                                            setShowAddModal(true);
-                                                                        }}
-                                                                        className="p-4 bg-slate-50 hover:bg-rose-600 hover:text-white text-slate-300 rounded-2xl transition-all opacity-0 group-hover:opacity-100 shadow-sm"
+                                                                        onClick={() => handleDelete(item.id)}
+                                                                        className="p-4 bg-slate-50 text-slate-300 hover:bg-rose-50 hover:text-rose-600 rounded-2xl transition-all active:scale-90"
+                                                                        title="Liquidate Position"
                                                                     >
-                                                                        <X className="w-5 h-5" />
+                                                                        <Trash2 className="w-5 h-5" />
                                                                     </button>
                                                                 </td>
                                                             </tr>
@@ -540,8 +700,8 @@ const Portfolio = () => {
                                                         {portfolio.length === 0 && (
                                                             <tr>
                                                                 <td colSpan="5" className="p-32 text-center">
-                                                                    <div className="w-24 h-24 bg-slate-50 rounded-[32px] flex items-center justify-center mx-auto mb-8 shadow-inner">
-                                                                        <Briefcase className="w-10 h-10 text-slate-200" />
+                                                                    <div className="w-24 h-24 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-8 text-slate-200">
+                                                                        <Briefcase className="w-10 h-10" />
                                                                     </div>
                                                                     <p className="text-slate-400 font-black text-xs uppercase tracking-[0.3em]">Vault Liquidity High • No Positions</p>
                                                                 </td>
@@ -553,93 +713,334 @@ const Portfolio = () => {
 
                                             {activeTab === 'analysis' && (
                                                 <div className="p-10">
-                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                                                        <div className="bg-slate-50/50 p-10 rounded-[40px] border border-slate-100">
-                                                            <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest mb-8 flex items-center gap-3">
-                                                                <PieIcon className="w-4 h-4 text-orange-500" />
-                                                                Sector Diversification
-                                                            </h3>
-                                                            <div className="h-[300px]">
-                                                                <ResponsiveContainer width="100%" height="100%">
-                                                                    <PieChart>
-                                                                        <Pie
-                                                                            data={sectorData}
-                                                                            innerRadius={80}
-                                                                            outerRadius={110}
-                                                                            paddingAngle={8}
-                                                                            dataKey="value"
-                                                                        >
-                                                                            {sectorData.map((entry, index) => (
-                                                                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} stroke="none" />
-                                                                            ))}
-                                                                        </Pie>
-                                                                        <Tooltip 
-                                                                            contentStyle={{ backgroundColor: '#fff', borderRadius: '16px', border: 'none', boxShadow: '0 10px 30px rgba(0,0,0,0.1)' }}
-                                                                            itemStyle={{ fontSize: '10px', fontWeight: '900', textTransform: 'uppercase' }}
-                                                                        />
-                                                                    </PieChart>
-                                                                </ResponsiveContainer>
-                                                            </div>
+                                                    <div className="flex justify-between items-center mb-10">
+                                                        <div>
+                                                            <h2 className="text-3xl font-black text-slate-900 tracking-tighter uppercase italic">Institutional Oversight</h2>
+                                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">AI-Driven Portfolio Audit & Strategy</p>
                                                         </div>
-                                                        <div className="flex flex-col justify-center gap-4">
-                                                            {sectorData.map((s, idx) => (
-                                                                <div key={s.name} className="flex items-center justify-between p-6 bg-white rounded-3xl border border-slate-100 shadow-sm">
-                                                                    <div className="flex items-center gap-4">
-                                                                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: COLORS[idx % COLORS.length] }} />
-                                                                        <span className="text-[10px] font-black text-slate-900 uppercase tracking-widest">{s.name}</span>
+                                                        <button 
+                                                            onClick={runPortfolioAnalysis}
+                                                            disabled={isAnalyzingPortfolio}
+                                                            className="px-8 py-4 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-orange-600 transition-all shadow-xl shadow-slate-900/10 flex items-center gap-3 disabled:opacity-50"
+                                                        >
+                                                            {isAnalyzingPortfolio ? (
+                                                                <>
+                                                                    <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                                                                    Processing...
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <Sparkles className="w-4 h-4" />
+                                                                    Generate Report
+                                                                </>
+                                                            )}
+                                                        </button>
+                                                    </div>
+
+                                                    <div className="grid grid-cols-1 gap-10">
+                                                        <div className="w-full">
+                                                            {portfolioReport ? (
+                                                                <div className="bg-white p-16 rounded-[48px] border border-slate-100 shadow-2xl relative overflow-hidden h-full min-h-[600px]">
+                                                                    {/* Background Decorative Elements */}
+                                                                    <div className="absolute top-0 right-0 w-96 h-96 bg-slate-50 rounded-full blur-3xl -mr-48 -mt-48 opacity-50" />
+                                                                    <div className="absolute bottom-0 left-0 w-64 h-64 bg-orange-50 rounded-full blur-3xl -ml-32 -mb-32 opacity-30" />
+                                                                    
+                                                                    <div className="relative z-10">
+                                                                        {/* Official Header */}
+                                                                        <div className="flex justify-between items-start mb-16 pb-8 border-b-2 border-slate-900/5">
+                                                                            <div>
+                                                                                <div className="flex items-center gap-3 mb-2">
+                                                                                    <div className="p-2 bg-slate-900 rounded-lg text-white">
+                                                                                        <Shield className="w-4 h-4" />
+                                                                                    </div>
+                                                                                    <span className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-900">EquiSense Institutional</span>
+                                                                                </div>
+                                                                                <h4 className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Internal Strategy Memorandum</h4>
+                                                                            </div>
+                                                                            <div className="text-right">
+                                                                                <p className="text-[10px] font-black text-slate-900 uppercase tracking-widest">{new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
+                                                                                <p className="text-[8px] font-bold text-orange-500 uppercase tracking-[0.2em] mt-1 italic">Classification: Restricted</p>
+                                                                            </div>
+                                                                        </div>
+
+                                                                        {/* Report Content */}
+                                                                        <div className="prose prose-slate max-w-none">
+                                                                            {portfolioReport.split('\n').map((line, i) => {
+                                                                                const cleanLine = line.trim();
+                                                                                if (!cleanLine) return <div key={i} className="h-4" />;
+                                                                                
+                                                                                // Header 3 Parsing
+                                                                                if (cleanLine.startsWith('###')) {
+                                                                                    return (
+                                                                                        <h3 key={i} className="text-xl font-black text-slate-900 uppercase italic tracking-tight mt-12 mb-6 flex items-center gap-4">
+                                                                                            <span className="w-8 h-[2px] bg-orange-500" />
+                                                                                            {cleanLine.replace('###', '').replace(/\[|\]/g, '').trim()}
+                                                                                        </h3>
+                                                                                    );
+                                                                                }
+                                                                                
+                                                                                // Memorandum Header Pattern (**KEY:** Value)
+                                                                                if (cleanLine.startsWith('**') && cleanLine.includes(':**')) {
+                                                                                    const [key, ...rest] = cleanLine.split(':**');
+                                                                                    return (
+                                                                                        <div key={i} className="flex gap-4 mb-2">
+                                                                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest w-24 shrink-0">{key.replace(/\*/g, '')}</span>
+                                                                                            <span className="text-[10px] font-black text-slate-900 uppercase tracking-widest">{rest.join(':**').trim()}</span>
+                                                                                        </div>
+                                                                                    );
+                                                                                }
+
+                                                                                // Generic Bold Pattern (**Text**)
+                                                                                if (cleanLine.includes('**')) {
+                                                                                    const parts = cleanLine.split('**');
+                                                                                    return (
+                                                                                        <p key={i} className="text-slate-600 text-sm font-medium leading-relaxed mb-4">
+                                                                                            {parts.map((part, pi) => pi % 2 === 1 ? <strong key={pi} className="text-slate-900 font-black italic">{part}</strong> : part)}
+                                                                                        </p>
+                                                                                    );
+                                                                                }
+
+                                                                                // Memorandum Title (**TITLE**)
+                                                                                if (cleanLine.startsWith('**') && cleanLine.endsWith('**')) {
+                                                                                    return <h2 key={i} className="text-3xl font-black text-slate-900 uppercase italic tracking-tighter mb-10">{cleanLine.replace(/\*/g, '')}</h2>;
+                                                                                }
+
+                                                                                // List Item Pattern (* )
+                                                                                if (cleanLine.startsWith('* ')) {
+                                                                                    const content = cleanLine.replace('* ', '');
+                                                                                    const parts = content.split('**');
+                                                                                    return (
+                                                                                        <div key={i} className="flex gap-4 mb-4 pl-4 border-l-2 border-orange-500/20">
+                                                                                            <p className="text-slate-600 text-sm font-medium leading-relaxed">
+                                                                                                {parts.map((part, pi) => pi % 2 === 1 ? <strong key={pi} className="text-slate-900 font-black italic">{part}</strong> : part)}
+                                                                                            </p>
+                                                                                        </div>
+                                                                                    );
+                                                                                }
+
+                                                                                return <p key={i} className="text-slate-600 text-sm font-medium leading-relaxed mb-4">{cleanLine}</p>;
+                                                                            })}
+                                                                        </div>
+
+                                                                        {/* Footer Signature Area */}
+                                                                        <div className="mt-20 pt-8 border-t border-slate-100 flex justify-between items-end">
+                                                                            <div className="opacity-20 select-none">
+                                                                                <p className="text-[40px] font-black text-slate-900 tracking-tighter uppercase italic leading-none">STRATEGIC AUDIT</p>
+                                                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[1em] mt-2">CONFIDENTIAL ADVISORY</p>
+                                                                            </div>
+                                                                            <div className="flex items-center gap-4 bg-slate-50 px-6 py-4 rounded-2xl border border-slate-100">
+                                                                                <div className="w-10 h-10 bg-slate-900 rounded-xl flex items-center justify-center">
+                                                                                    <Bot className="w-6 h-6 text-orange-500" />
+                                                                                </div>
+                                                                                <div>
+                                                                                    <p className="text-[10px] font-black text-slate-900 uppercase tracking-widest">EquiTrade AI Pilot</p>
+                                                                                    <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Automated Intelligence Suite</p>
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
                                                                     </div>
-                                                                    <span className="text-[10px] font-black text-slate-400">₹{s.value.toLocaleString()}</span>
                                                                 </div>
-                                                            ))}
+                                                            ) : (
+                                                                <div className="h-full bg-slate-50/50 rounded-[48px] border-2 border-dashed border-slate-200 flex flex-col items-center justify-center p-20 text-center">
+                                                                    <div className="w-24 h-24 bg-white rounded-full flex items-center justify-center shadow-xl shadow-slate-200/50 mb-8 text-slate-300">
+                                                                        <Bot className="w-10 h-10" />
+                                                                    </div>
+                                                                    <h4 className="text-2xl font-black text-slate-900 tracking-tighter uppercase italic mb-4">No Insight Generated</h4>
+                                                                    <p className="text-slate-400 font-medium max-w-sm mb-8 leading-relaxed">Click the button above to run an institutional-grade audit on your current holdings using real-time market data.</p>
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 </div>
                                             )}
 
                                             {activeTab === 'orders' && (
-                                                <div className="p-0">
-                                                    <table className="w-full text-left border-collapse">
-                                                        <thead>
-                                                            <tr className="bg-slate-50/40 border-b border-slate-50">
-                                                                <th className="p-8 text-[10px] font-black text-slate-400 uppercase tracking-widest">Order Details</th>
-                                                                <th className="p-8 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Volume</th>
-                                                                <th className="p-8 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Execution Price</th>
-                                                                <th className="p-8 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Status</th>
-                                                            </tr>
-                                                        </thead>
-                                                        <tbody className="divide-y divide-slate-50">
-                                                            {brokerOrders.map((order) => (
-                                                                <tr key={order.order_id} className="hover:bg-slate-50/50 transition-all">
-                                                                    <td className="p-8">
-                                                                        <p className="font-black text-slate-900 text-lg uppercase tracking-tight">{order.tradingsymbol}</p>
-                                                                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mt-1">{order.order_timestamp}</p>
-                                                                    </td>
-                                                                    <td className="p-8 text-right font-black text-slate-700">{order.quantity}</td>
-                                                                    <td className="p-8 text-right font-black text-slate-900">₹{order.average_price.toLocaleString()}</td>
-                                                                    <td className="p-8 text-right">
-                                                                        <span className={`px-4 py-2 rounded-full text-[8px] font-black uppercase tracking-widest ${order.status === 'COMPLETE' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
-                                                                            {order.status}
-                                                                        </span>
-                                                                    </td>
-                                                                </tr>
+                                                <div className="p-10 space-y-12">
+                                                    {/* Section 1: Pending / Future Orders */}
+                                                    <div>
+                                                        <div className="flex items-center justify-between mb-6">
+                                                            <div className="flex items-center gap-4">
+                                                                <div className="p-3 bg-amber-50 rounded-2xl text-amber-600">
+                                                                    <Clock className="w-6 h-6" />
+                                                                </div>
+                                                                <div>
+                                                                    <h3 className="text-xl font-black text-slate-900 tracking-tighter italic uppercase">Active Queue</h3>
+                                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Scheduled Transmissions</p>
+                                                                </div>
+                                                            </div>
+                                                            <div className="px-4 py-2 bg-slate-50 border border-slate-100 rounded-xl">
+                                                                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{upcomingTrades.length} Pending</span>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                                            {upcomingTrades.map((trade, tidx) => (
+                                                                <div key={trade.id || `pending-${tidx}`} className="p-8 rounded-[40px] bg-white border border-slate-100 shadow-sm hover:shadow-xl hover:border-amber-200 transition-all group">
+                                                                    <div className="flex justify-between items-start mb-6">
+                                                                        <div className="flex items-center gap-4">
+                                                                            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center font-black text-white text-lg ${trade.trades?.[0]?.action === 'BUY' ? 'bg-emerald-600' : 'bg-rose-600'}`}>
+                                                                                {trade.trades?.[0]?.symbol?.[0] || 'T'}
+                                                                            </div>
+                                                                            <div>
+                                                                                <p className="text-xl font-black text-slate-900 tracking-tight uppercase">{trade.trades?.[0]?.symbol || 'UNKNOWN'}</p>
+                                                                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{trade.trades?.[0]?.action || 'AUTO'}</p>
+                                                                            </div>
+                                                                        </div>
+                                                                        <button 
+                                                                            onClick={() => handleDismissTrade(trade.id)}
+                                                                            className="p-3 bg-rose-50 text-rose-600 rounded-xl opacity-0 group-hover:opacity-100 transition-all hover:bg-rose-600 hover:text-white"
+                                                                            title="Cancel Order"
+                                                                        >
+                                                                            <X className="w-4 h-4" />
+                                                                        </button>
+                                                                    </div>
+                                                                    <div className="grid grid-cols-2 gap-4">
+                                                                        <div className="p-4 bg-slate-50 rounded-2xl">
+                                                                            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Volume</p>
+                                                                            <p className="font-black text-slate-900">{trade.trades?.[0]?.quantity || 0}</p>
+                                                                        </div>
+                                                                        <div className="p-4 bg-slate-50 rounded-2xl">
+                                                                            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Target</p>
+                                                                            <p className="font-black text-slate-900">₹{trade.trades?.[0]?.price?.toLocaleString() || '---'}</p>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
                                                             ))}
-                                                            {brokerOrders.length === 0 && (
-                                                                <tr>
-                                                                    <td colSpan="4" className="p-20 text-center text-slate-300 font-black text-[10px] uppercase tracking-widest">No order history available</td>
-                                                                </tr>
+                                                            {upcomingTrades.length === 0 && (
+                                                                <div className="col-span-2 py-20 text-center border-2 border-dashed border-slate-100 rounded-[48px]">
+                                                                    <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6">
+                                                                        <CheckCircle2 className="w-8 h-8 text-slate-200" />
+                                                                    </div>
+                                                                    <p className="text-slate-300 font-black text-[10px] uppercase tracking-widest italic">All Orders Executed</p>
+                                                                </div>
                                                             )}
-                                                        </tbody>
-                                                    </table>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Section 2: Order History */}
+                                                    <div>
+                                                        <div className="flex items-center gap-4 mb-6">
+                                                            <div className="p-3 bg-indigo-50 rounded-2xl text-indigo-600">
+                                                                <HistoryIcon className="w-6 h-6" />
+                                                            </div>
+                                                            <div>
+                                                                <h3 className="text-xl font-black text-slate-900 tracking-tighter italic uppercase">Order History</h3>
+                                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Audit Trail of Executions</p>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="bg-white rounded-[40px] border border-slate-100 shadow-sm overflow-hidden">
+                                                            <table className="w-full text-left border-collapse">
+                                                                <thead>
+                                                                    <tr className="bg-slate-50/40 border-b border-slate-50">
+                                                                        <th className="p-8 text-[10px] font-black text-slate-400 uppercase tracking-widest">Asset</th>
+                                                                        <th className="p-8 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Action</th>
+                                                                        <th className="p-8 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Volume</th>
+                                                                        <th className="p-8 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Price</th>
+                                                                        <th className="p-8 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Status</th>
+                                                                    </tr>
+                                                                </thead>
+                                                                <tbody className="divide-y divide-slate-50">
+                                                                    {[...tradeLogs, ...brokerOrders].sort((a, b) => new Date(b.timestamp || b.order_timestamp) - new Date(a.timestamp || a.order_timestamp)).map((order, oidx) => (
+                                                                        <tr key={order.id || order.order_id || `hist-${oidx}`} className="hover:bg-slate-50/50 transition-all group">
+                                                                            <td className="p-8">
+                                                                                <p className="font-black text-slate-900 text-lg uppercase tracking-tight">{order.symbol || order.tradingsymbol}</p>
+                                                                                <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mt-1">{new Date(order.timestamp || order.order_timestamp).toLocaleString()}</p>
+                                                                            </td>
+                                                                            <td className="p-8 text-right">
+                                                                                <span className={`text-[10px] font-black uppercase tracking-widest ${order.action === 'BUY' || order.transaction_type === 'BUY' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                                                                    {order.action || order.transaction_type || 'BUY'}
+                                                                                </span>
+                                                                            </td>
+                                                                            <td className="p-8 text-right font-black text-slate-700">{order.quantity}</td>
+                                                                            <td className="p-8 text-right font-black text-slate-900">₹{(order.price || order.average_price || 0).toLocaleString()}</td>
+                                                                            <td className="p-8 text-right">
+                                                                                <span className={`px-4 py-2 rounded-full text-[8px] font-black uppercase tracking-widest ${order.status === 'COMPLETE' || order.type === 'MOCK' ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
+                                                                                    {order.status || 'MOCK EXECUTED'}
+                                                                                </span>
+                                                                            </td>
+                                                                        </tr>
+                                                                    ))}
+                                                                    {[...tradeLogs, ...brokerOrders].length === 0 && (
+                                                                        <tr>
+                                                                            <td colSpan="5" className="p-20 text-center text-slate-300 font-black text-[10px] uppercase tracking-widest">Archive Empty</td>
+                                                                        </tr>
+                                                                    )}
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             )}
                                         </div>
                                     </div>
                                 </>
                             )}
+                                    {/* Daily Executive Briefing */}
+                                    {dailyReports.length > 0 && (
+                                        <div className="bg-slate-900 rounded-[40px] p-10 text-white shadow-2xl relative overflow-hidden group mt-10">
+                                            <div className="absolute top-0 right-0 w-64 h-64 bg-orange-600/10 rounded-full blur-3xl -mr-32 -mt-32 group-hover:bg-orange-600/20 transition-all duration-700" />
+                                            <div className="relative z-10">
+                                                <div className="flex items-center justify-between mb-8">
+                                                    <div className="flex items-center gap-4">
+                                                        <div className="p-3 bg-white/10 backdrop-blur-md rounded-2xl border border-white/10 text-orange-500">
+                                                            <Sparkles className="w-6 h-6 fill-current" />
+                                                        </div>
+                                                        <div>
+                                                            <h2 className="text-xl font-black italic uppercase tracking-tight">Daily <span className="text-orange-500">Executive</span> Brief</h2>
+                                                            <p className="text-[10px] font-black text-white/40 uppercase tracking-[0.2em]">Strategy Reconnaissance</p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-3 px-4 py-2 bg-white/5 rounded-full border border-white/5">
+                                                        <Clock className="w-3 h-3 text-white/40" />
+                                                        <span className="text-[10px] font-black text-white/60 uppercase tracking-widest">
+                                                            {new Date(dailyReports[0].date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                                                        </span>
+                                                    </div>
+                                                </div>
+
+                                                <div className="grid grid-cols-1 md:grid-cols-12 gap-10">
+                                                    <div className="md:col-span-4 space-y-4">
+                                                        <div className={`inline-flex items-center gap-3 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest ${dailyReports[0].marketStatus === 'OPEN' ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-500 border border-amber-500/20'}`}>
+                                                            {dailyReports[0].marketStatus === 'OPEN' ? (
+                                                                <><Activity className="w-3 h-3" /> Trading Day Active</>
+                                                            ) : (
+                                                                <><ShieldAlert className="w-3 h-3" /> Exchange Holiday</>
+                                                            )}
+                                                        </div>
+                                                        <h3 className="text-2xl font-black leading-tight tracking-tighter italic">
+                                                            {dailyReports[0].summary}
+                                                        </h3>
+                                                    </div>
+                                                    <div className="md:col-span-8">
+                                                        <div className="bg-white/5 backdrop-blur-sm p-8 rounded-3xl border border-white/10 h-full">
+                                                            <div className="flex items-start gap-4">
+                                                                <Brain className="w-5 h-5 text-orange-500 mt-1 shrink-0" />
+                                                                <p className="text-slate-300 text-sm font-medium leading-relaxed italic">
+                                                                    "{dailyReports[0].analysis}"
+                                                                </p>
+                                                            </div>
+                                                            <div className="mt-6 pt-6 border-t border-white/5 flex items-center justify-between">
+                                                                <p className="text-[9px] font-black text-white/20 uppercase tracking-[0.3em]">Institutional Grade Synthesis</p>
+                                                                <div className="flex -space-x-2">
+                                                                    {[1,2,3].map(i => (
+                                                                        <div key={i} className="w-6 h-6 rounded-full border-2 border-slate-900 bg-slate-800 flex items-center justify-center">
+                                                                            <Bot className="w-3 h-3 text-white/40" />
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
                         </div>
 
-                        {/* Sidebar */}
                         <div className="lg:col-span-4 space-y-10 lg:sticky lg:top-24 lg:self-start">
+
+
                             {/* Asset Distribution */}
                             <div className="bg-white p-10 rounded-[48px] border border-slate-100 shadow-sm">
                                 <div className="flex items-center gap-4 mb-8">
@@ -649,188 +1050,126 @@ const Portfolio = () => {
                                     <h2 className="text-xl font-black text-slate-900 italic tracking-tight uppercase">Distribution</h2>
                                 </div>
                                 <div className="h-[200px] min-h-[200px] w-full mb-6">
-                                    <ResponsiveContainer width="100%" height="100%">
+                                    <ResponsiveContainer width="100%" height={200}>
                                         <PieChart>
                                             <Pie
-                                                data={pieData}
+                                                data={distributionData}
                                                 innerRadius={60}
                                                 outerRadius={80}
                                                 paddingAngle={5}
                                                 dataKey="value"
                                             >
-                                                {pieData.map((entry, index) => (
+                                                {distributionData.map((entry, index) => (
                                                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                                 ))}
                                             </Pie>
-                                            <Tooltip />
+                                            <Tooltip 
+                                                contentStyle={{ backgroundColor: '#fff', borderRadius: '16px', border: 'none', boxShadow: '0 10px 30px rgba(0,0,0,0.1)' }}
+                                                itemStyle={{ fontSize: '10px', fontWeight: '900', textTransform: 'uppercase' }}
+                                            />
                                         </PieChart>
                                     </ResponsiveContainer>
                                 </div>
-                                <div className="space-y-3">
-                                    {pieData.map((d, i) => (
-                                        <div key={i} className="flex items-center justify-between">
-                                            <div className="flex items-center gap-2">
-                                                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
-                                                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{d.name}</span>
-                                            </div>
-                                            <span className="text-[10px] font-black text-slate-900 tracking-tighter">₹{d.value.toLocaleString()}</span>
-                                        </div>
-                                    ))}
-                                </div>
                             </div>
 
-                            {/* Execution & History Queue */}
-                            <div className="bg-white rounded-[40px] border border-slate-100 shadow-sm overflow-hidden flex flex-col">
-                                <div className="p-8 border-b border-slate-50 flex items-center justify-between bg-white z-10">
+                            {/* Watchlist Quick Peek */}
+                            <div className="bg-white p-10 rounded-[48px] border border-slate-100 shadow-sm">
+                                <div className="flex items-center justify-between mb-8">
                                     <div className="flex items-center gap-4">
                                         <div className="p-3 bg-indigo-50 rounded-2xl text-indigo-600">
-                                            <Zap className="w-6 h-6 fill-current" />
+                                            <Eye className="w-6 h-6" />
                                         </div>
-                                        <h2 className="text-xl font-black text-slate-900 italic tracking-tight uppercase">Audit Trail</h2>
+                                        <h2 className="text-xl font-black text-slate-900 italic tracking-tight uppercase">Watchlist</h2>
                                     </div>
-                                    <div className="flex bg-slate-100 p-1.5 rounded-2xl border border-slate-200">
-                                        <button 
-                                            onClick={() => setQueueTab('upcoming')}
-                                            className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${queueTab === 'upcoming' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400'}`}
-                                        >
-                                            <Clock className="w-3.5 h-3.5" />
-                                            Plan
-                                        </button>
-                                        <button 
-                                            onClick={() => setQueueTab('history')}
-                                            className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${queueTab === 'history' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400'}`}
-                                        >
-                                            <HistoryIcon className="w-3.5 h-3.5" />
-                                            History
-                                        </button>
-                                    </div>
+                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{watchlist.length} ACTIVE</span>
                                 </div>
-                                <div className="p-8 space-y-6 flex-1 overflow-y-auto max-h-[700px] scrollbar-hide">
-                                    {queueTab === 'upcoming' ? (
-                                        upcomingTrades.map((trade) => (
-                                            <div key={trade.id} className="p-7 rounded-[32px] bg-slate-50 border border-slate-100 group relative hover:border-indigo-200 transition-all hover:shadow-xl hover:shadow-indigo-500/5">
-                                                <div className="flex justify-between items-start mb-6">
-                                                    <div>
-                                                        <div className="flex items-center gap-2 mb-2">
-                                                            <span className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest ${trade.trades?.[0]?.action === 'BUY' ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white'}`}>
-                                                                {trade.trades?.[0]?.action || 'AUTO'}
-                                                            </span>
-                                                            <span className="text-base font-black text-slate-900 tracking-tighter">{trade.trades?.[0]?.symbol || 'UNKNOWN'}</span>
-                                                        </div>
-                                                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest flex items-center gap-2">
-                                                            <Brain className="w-3.5 h-3.5 text-indigo-500" />
-                                                            {trade.status} Transmission
-                                                        </p>
-                                                    </div>
-                                                    <div className="flex gap-2">
-                                                        <button 
-                                                            onClick={() => handleSkipOrder(trade.id)}
-                                                            className="p-3 bg-white rounded-xl text-slate-400 hover:text-amber-600 shadow-sm transition-all hover:scale-110 border border-slate-100"
-                                                            title="Skip Execution"
-                                                        >
-                                                            <SkipForward className="w-4 h-4" />
-                                                        </button>
-                                                        <button 
-                                                            onClick={() => handleDismissTrade(trade.id)}
-                                                            className="p-3 bg-white rounded-xl text-slate-400 hover:text-rose-600 shadow-sm transition-all hover:scale-110 border border-slate-100"
-                                                            title="Purge Plan"
-                                                        >
-                                                            <X className="w-4 h-4" />
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                                <div className="flex justify-between items-center mt-8 pt-6 border-t border-slate-100">
-                                                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                                                        Value: <span className="text-slate-900">₹{trade.trades?.[0]?.amount?.toLocaleString() || '0'}</span>
-                                                    </div>
-                                                    <button className="flex items-center gap-2 px-5 py-2.5 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-orange-600 transition-all shadow-lg active:scale-95">
-                                                        <Play className="w-3 h-3 fill-current" />
-                                                        Execute Now
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        ))
-                                    ) : (
-                                        tradeLogs.map((log) => (
-                                            <div 
-                                                key={log.id} 
-                                                className="p-6 rounded-[32px] bg-white border border-slate-50 hover:border-slate-200 transition-all cursor-pointer group shadow-sm hover:shadow-md"
-                                                onClick={() => setShowDetailModal(log)}
-                                            >
-                                                <div className="flex justify-between items-start">
-                                                    <div className="flex items-center gap-4">
-                                                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-sm shadow-sm ${log.action === 'BUY' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
-                                                            {log.action[0]}
-                                                        </div>
-                                                        <div>
-                                                            <p className="text-sm font-black text-slate-900 tracking-tight">{log.symbol}</p>
-                                                            <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest flex items-center gap-1">
-                                                                <Clock className="w-2.5 h-2.5" />
-                                                                {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                                            </p>
-                                                        </div>
-                                                    </div>
-                                                    <div className="text-right">
-                                                        <p className="text-sm font-black text-slate-900">₹{log.price.toLocaleString()}</p>
-                                                        <p className={`text-[9px] font-bold uppercase tracking-widest ${log.mode === 'AI_PILOT' ? 'text-orange-500' : 'text-indigo-500'}`}>
-                                                            {log.mode.replace('_', ' ')}
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                                <div className="mt-4 flex items-center justify-between">
-                                                    <div className="flex -space-x-1">
-                                                        <div className="w-5 h-5 rounded-full border-2 border-white bg-slate-200 flex items-center justify-center">
-                                                            <Info className="w-2.5 h-2.5 text-slate-400" />
-                                                        </div>
-                                                    </div>
-                                                    <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-orange-500 transition-colors" />
-                                                </div>
-                                            </div>
-                                        ))
-                                    )}
-                                    {((queueTab === 'upcoming' && upcomingTrades.length === 0) || (queueTab === 'history' && tradeLogs.length === 0)) && (
-                                        <div className="text-center py-24">
-                                            <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6">
-                                                <HistoryIcon className="w-8 h-8 text-slate-100" />
-                                            </div>
-                                            <p className="text-slate-400 font-black text-[10px] uppercase tracking-widest italic">Intelligence Log Vacant</p>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
 
-                            {/* Watchlist */}
-                            <div className="bg-white rounded-[40px] border border-slate-100 shadow-sm p-10">
-                                <div className="flex items-center gap-4 mb-8">
-                                    <div className="p-3 bg-orange-50 rounded-2xl text-orange-600">
-                                        <Target className="w-6 h-6" />
-                                    </div>
-                                    <div>
-                                        <h2 className="text-xl font-black text-slate-900 italic tracking-tight uppercase">High-Alpha Watch</h2>
-                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Candidates for AI Rotation</p>
-                                    </div>
+                                <div className="relative mb-8">
+                                    <form onSubmit={addToWatchlist} className="flex gap-3">
+                                        <div className="relative flex-1">
+                                            <input 
+                                                type="text" 
+                                                placeholder="ADD TICKER (E.G. RELIANCE)" 
+                                                value={watchlistSymbol}
+                                                onChange={(e) => setWatchlistSymbol(e.target.value)}
+                                                className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-5 py-3 text-[10px] font-black uppercase tracking-widest focus:outline-none focus:border-indigo-200 transition-all"
+                                            />
+                                            {isSearching && (
+                                                <div className="absolute right-4 top-1/2 -translate-y-1/2">
+                                                    <Loader2 className="w-3 h-3 animate-spin text-slate-400" />
+                                                </div>
+                                            )}
+                                        </div>
+                                        <button type="submit" className="p-3 bg-slate-900 text-white rounded-2xl hover:bg-indigo-600 transition-all shadow-lg active:scale-90">
+                                            <Plus className="w-4 h-4" />
+                                        </button>
+                                    </form>
+
+                                    {/* Search Suggestions Dropdown */}
+                                    <AnimatePresence>
+                                        {searchSuggestions.length > 0 && (
+                                            <motion.div 
+                                                initial={{ opacity: 0, y: 10 }}
+                                                animate={{ opacity: 1, y: 0 }}
+                                                exit={{ opacity: 0, y: 10 }}
+                                                className="absolute z-50 left-0 right-0 top-full mt-2 bg-white border border-slate-100 rounded-3xl shadow-[0_10px_40px_rgba(0,0,0,0.08)] overflow-hidden"
+                                            >
+                                                {searchSuggestions.map((item) => (
+                                                    <button
+                                                        key={item.symbol}
+                                                        onClick={() => selectFromSearch(item.symbol)}
+                                                        className="w-full px-6 py-4 flex items-center justify-between hover:bg-slate-50 transition-colors text-left group"
+                                                    >
+                                                        <div>
+                                                            <p className="text-[10px] font-black text-slate-900 uppercase tracking-widest">{item.symbol}</p>
+                                                            <p className="text-[9px] font-bold text-slate-400 uppercase truncate max-w-[200px]">{item.name}</p>
+                                                        </div>
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-[8px] font-black text-slate-300 uppercase px-2 py-0.5 border border-slate-100 rounded-md group-hover:border-indigo-200 group-hover:text-indigo-600 transition-all">
+                                                                {item.exch}
+                                                            </span>
+                                                            <Plus className="w-3 h-3 text-slate-200 group-hover:text-indigo-600 transition-all" />
+                                                        </div>
+                                                    </button>
+                                                ))}
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
                                 </div>
-                                <div className="space-y-4">
-                                    {watchlist.map((item) => (
-                                        <div key={item.id} className="flex justify-between items-center p-6 rounded-[32px] bg-slate-50 border border-slate-100 group transition-all hover:bg-white hover:shadow-xl hover:shadow-slate-200/50 hover:border-orange-200">
-                                            <div className="flex items-center gap-5">
-                                                <div className="w-14 h-14 rounded-2xl bg-white flex items-center justify-center font-black text-slate-900 text-lg shadow-sm border border-slate-50 transition-transform group-hover:scale-105">
+
+                                <div className="space-y-6">
+                                    {watchlist.length > 0 ? watchlist.slice(0, 10).map((item, idx) => (
+                                        <div key={item.id} className="flex items-center justify-between group cursor-pointer">
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-12 h-12 rounded-xl bg-slate-50 flex items-center justify-center font-black text-slate-400 group-hover:bg-slate-900 group-hover:text-white transition-all">
                                                     {item.stock.symbol[0]}
                                                 </div>
                                                 <div>
                                                     <span className="font-black text-slate-900 text-base tracking-tight">{item.stock.symbol}</span>
                                                     <div className="flex items-center gap-2 mt-1">
                                                         <span className="text-[9px] text-slate-400 font-black tracking-widest uppercase">NSE</span>
-                                                        <span className="w-1 h-1 rounded-full bg-slate-300" />
-                                                        <span className="text-[9px] text-emerald-500 font-black tracking-widest uppercase">+1.2%</span>
                                                     </div>
                                                 </div>
                                             </div>
-                                            <button className="p-3 bg-white shadow-sm rounded-xl text-slate-200 hover:text-orange-600 hover:border-orange-100 border border-transparent transition-all opacity-0 group-hover:opacity-100 hover:scale-110">
-                                                <Plus className="w-5 h-5" />
+                                            <button 
+                                                onClick={() => removeFromWatchlist(item.id)}
+                                                className="p-3 bg-white shadow-sm rounded-xl text-slate-200 hover:text-rose-600 hover:border-rose-100 border border-transparent transition-all opacity-0 group-hover:opacity-100 hover:scale-110"
+                                            >
+                                                <X className="w-4 h-4" />
                                             </button>
                                         </div>
-                                    ))}
+                                    )) : (
+                                        <p className="text-[10px] font-bold text-slate-400 text-center py-10 uppercase tracking-widest italic">No assets tracked</p>
+                                    )}
+                                </div>
+
+                                <div className="mt-10 pt-6 border-t border-slate-50">
+                                    <div className="flex gap-3 items-start">
+                                        <Zap className="w-4 h-4 text-orange-600 mt-0.5 shrink-0" />
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-relaxed">
+                                            <span className="text-orange-600">Priority Protocol:</span> These stocks would be considered first for deployment in the AI Pilot mode.
+                                        </p>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -907,11 +1246,13 @@ const Portfolio = () => {
                         </motion.div>
                     </div>
                 )}
+            </AnimatePresence>
 
-                {/* Top Up Modal */}
+            {/* Top Up Modal */}
+            <AnimatePresence>
                 {showTopUpModal && (
                     <div className="fixed inset-0 z-[110] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-md">
-                        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white p-10 w-full max-w-md rounded-[48px] shadow-2xl relative border border-slate-200">
+                        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white p-10 w-full max-w-md rounded-[48px] shadow-2xl relative border border-slate-200">
                             <h3 className="text-2xl font-black text-slate-900 mb-2 uppercase italic tracking-tighter underline decoration-orange-600 decoration-4">Injection Protocol</h3>
                             <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-8">Add Mock Funds to Vault</p>
                             
@@ -935,223 +1276,293 @@ const Portfolio = () => {
                         </motion.div>
                     </div>
                 )}
+            </AnimatePresence>
 
-                {/* Add/Trade Modal */}
-                <AnimatePresence>
-                    {showAddModal && (
-                        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-md">
-                            <motion.div 
-                                initial={{ opacity: 0, scale: 0.9, y: 20 }} 
-                                animate={{ opacity: 1, scale: 1, y: 0 }} 
-                                exit={{ opacity: 0, scale: 0.9, y: 20 }}
-                                className="bg-white p-10 w-full max-w-lg rounded-[48px] shadow-2xl relative border border-slate-200"
-                            >
-                                <div className="flex items-center gap-4 mb-8">
-                                    <div className={`p-4 rounded-[20px] text-white ${newItem.type === 'BUY' ? 'bg-emerald-600' : 'bg-rose-600'}`}>
-                                        <Zap className="w-6 h-6" />
+            {/* Add/Trade Modal */}
+            <AnimatePresence>
+                {showAddModal && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-md">
+                        <motion.div 
+                            initial={{ opacity: 0, scale: 0.9, y: 20 }} 
+                            animate={{ opacity: 1, scale: 1, y: 0 }} 
+                            exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                            className="bg-white p-10 w-full max-w-lg rounded-[48px] shadow-2xl relative border border-slate-200"
+                        >
+                            <div className="flex items-center gap-4 mb-8">
+                                <div className={`p-4 rounded-[20px] text-white ${newItem.type === 'BUY' ? 'bg-emerald-600' : 'bg-rose-600'}`}>
+                                    <Zap className="w-6 h-6" />
+                                </div>
+                                <div>
+                                    <h3 className="text-2xl font-black text-slate-900 italic tracking-tight uppercase italic">Secure Transmission</h3>
+                                    <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">Executing {newItem.type} Order</p>
+                                </div>
+                            </div>
+
+                            <form onSubmit={handleMockOrder} className="space-y-6">
+                                <div className="flex bg-slate-100 p-1.5 rounded-[20px] mb-6">
+                                    <button 
+                                        type="button"
+                                        onClick={() => setNewItem({...newItem, type: 'BUY'})}
+                                        className={`flex-1 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${newItem.type === 'BUY' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-400'}`}
+                                    >
+                                        Buy Signal
+                                    </button>
+                                    <button 
+                                        type="button"
+                                        onClick={() => setNewItem({...newItem, type: 'SELL'})}
+                                        className={`flex-1 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${newItem.type === 'SELL' ? 'bg-white text-rose-600 shadow-sm' : 'text-slate-400'}`}
+                                    >
+                                        Sell Signal
+                                    </button>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Asset Identification</label>
+                                    <input 
+                                        type="text" 
+                                        placeholder="E.g. RELIANCE" 
+                                        className="w-full p-6 bg-slate-50 border border-slate-100 rounded-3xl text-lg font-black focus:outline-none focus:ring-4 focus:ring-orange-600/5 focus:border-orange-600/30 transition-all uppercase" 
+                                        value={newItem.symbol}
+                                        onChange={(e) => setNewItem({...newItem, symbol: e.target.value})}
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Share Quantity</label>
+                                    <input type="number" placeholder="00" className="w-full p-6 bg-slate-50 border border-slate-100 rounded-3xl text-lg font-black focus:outline-none border-slate-100 focus:border-orange-600/30 transition-all" value={newItem.quantity} onChange={(e) => setNewItem({...newItem, quantity: e.target.value})} />
+                                </div>
+                                
+                                <div className="flex gap-4 pt-6">
+                                    <button type="button" onClick={() => setShowAddModal(false)} className="flex-1 p-6 rounded-3xl border border-slate-100 font-black text-slate-400 uppercase tracking-widest hover:bg-slate-50 transition-colors">Abort</button>
+                                    <button type="submit" className={`flex-1 p-6 rounded-3xl text-white font-black text-xs uppercase tracking-[0.2em] transition-all shadow-xl ${newItem.type === 'BUY' ? 'bg-emerald-600 shadow-emerald-900/10' : 'bg-rose-600 shadow-rose-900/10'}`}>
+                                        Transmit {newItem.type}
+                                    </button>
+                                </div>
+                            </form>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
+
+            <AnimatePresence>
+                {showExecuteConfirm && (
+                    <div className="fixed inset-0 z-[250] flex items-center justify-center p-6">
+                        <motion.div 
+                            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                            onClick={() => {
+                                setShowExecuteConfirm(false);
+                                setPendingExecution(null);
+                            }}
+                            className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
+                        />
+                        <motion.div 
+                            initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                            animate={{ scale: 1, opacity: 1, y: 0 }}
+                            exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                            className="relative bg-white w-full max-w-lg rounded-[48px] shadow-2xl overflow-hidden border border-slate-100"
+                        >
+                            <div className="p-12 text-center">
+                                <div className="w-24 h-24 bg-emerald-50 rounded-[32px] flex items-center justify-center mx-auto mb-8 text-emerald-600 shadow-inner">
+                                    <ShieldCheck className="w-10 h-10" />
+                                </div>
+                                <h3 className="text-3xl font-black text-slate-900 tracking-tighter italic uppercase mb-4">Confirm Transmission</h3>
+                                <p className="text-slate-500 font-medium leading-relaxed mb-8">
+                                    You are about to transmit this order directly to the <span className="text-emerald-600 font-black uppercase tracking-widest text-[10px]">{selectedBroker}</span> production environment.
+                                </p>
+                                
+                                <div className="bg-slate-50 p-6 rounded-3xl mb-10 text-left border border-slate-100">
+                                    <div className="flex justify-between items-center mb-2">
+                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Ticker</span>
+                                        <span className="font-black text-slate-900 uppercase">{pendingExecution?.trades?.[0]?.symbol}</span>
                                     </div>
-                                    <div>
-                                        <h3 className="text-2xl font-black text-slate-900 italic tracking-tight uppercase italic">Secure Transmission</h3>
-                                        <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">Executing {newItem.type} Order</p>
+                                    <div className="flex justify-between items-center mb-2">
+                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Quantity</span>
+                                        <span className="font-black text-slate-900">{pendingExecution?.trades?.[0]?.quantity} Units</span>
+                                    </div>
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Est. Value</span>
+                                        <span className="font-black text-emerald-600">₹{pendingExecution?.trades?.[0]?.amount?.toLocaleString()}</span>
                                     </div>
                                 </div>
 
-                                <form onSubmit={handleMockOrder} className="space-y-6">
-                                    <div className="flex bg-slate-100 p-1.5 rounded-[20px] mb-6">
-                                        <button 
-                                            type="button"
-                                            onClick={() => setNewItem({...newItem, type: 'BUY'})}
-                                            className={`flex-1 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${newItem.type === 'BUY' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-400'}`}
-                                        >
-                                            Buy Signal
-                                        </button>
-                                        <button 
-                                            type="button"
-                                            onClick={() => setNewItem({...newItem, type: 'SELL'})}
-                                            className={`flex-1 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${newItem.type === 'SELL' ? 'bg-white text-rose-600 shadow-sm' : 'text-slate-400'}`}
-                                        >
-                                            Sell Signal
-                                        </button>
-                                    </div>
-
-                                    <div className="space-y-2">
-                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Asset Identification</label>
-                                        <input 
-                                            type="text" 
-                                            placeholder="E.g. RELIANCE" 
-                                            className="w-full p-6 bg-slate-50 border border-slate-100 rounded-3xl text-lg font-black focus:outline-none focus:ring-4 focus:ring-orange-600/5 focus:border-orange-600/30 transition-all uppercase" 
-                                            value={newItem.symbol}
-                                            onChange={(e) => setNewItem({...newItem, symbol: e.target.value})}
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Share Quantity</label>
-                                        <input type="number" placeholder="00" className="w-full p-6 bg-slate-50 border border-slate-100 rounded-3xl text-lg font-black focus:outline-none border-slate-100 focus:border-orange-600/30 transition-all" value={newItem.quantity} onChange={(e) => setNewItem({...newItem, quantity: e.target.value})} />
-                                    </div>
-                                    
-                                    <div className="flex gap-4 pt-6">
-                                        <button type="button" onClick={() => setShowAddModal(false)} className="flex-1 p-6 rounded-3xl border border-slate-100 font-black text-slate-400 uppercase tracking-widest hover:bg-slate-50 transition-colors">Abort</button>
-                                        <button type="submit" className={`flex-1 p-6 rounded-3xl text-white font-black text-xs uppercase tracking-[0.2em] transition-all shadow-xl ${newItem.type === 'BUY' ? 'bg-emerald-600 shadow-emerald-900/10' : 'bg-rose-600 shadow-rose-900/10'}`}>
-                                            Transmit {newItem.type}
-                                        </button>
-                                    </div>
-                                </form>
-                            </motion.div>
-                        </div>
-                    )}
-                </AnimatePresence>
-
-                <AnimatePresence>
-                    {showExecuteConfirm && (
-                        <div className="fixed inset-0 z-[250] flex items-center justify-center p-6">
-                            <motion.div 
-                                initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-                                onClick={() => {
-                                    setShowExecuteConfirm(false);
-                                    setPendingExecution(null);
-                                }}
-                                className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
-                            />
-                            <motion.div 
-                                initial={{ scale: 0.9, opacity: 0, y: 20 }}
-                                animate={{ scale: 1, opacity: 1, y: 0 }}
-                                className="relative bg-white w-full max-w-lg rounded-[48px] shadow-2xl overflow-hidden border border-slate-100"
-                            >
-                                <div className="p-12 text-center">
-                                    <div className="w-24 h-24 bg-emerald-50 rounded-[32px] flex items-center justify-center mx-auto mb-8 text-emerald-600 shadow-inner">
-                                        <ShieldCheck className="w-10 h-10" />
-                                    </div>
-                                    <h3 className="text-3xl font-black text-slate-900 tracking-tighter italic uppercase mb-4">Confirm Transmission</h3>
-                                    <p className="text-slate-500 font-medium leading-relaxed mb-8">
-                                        You are about to transmit this order directly to the <span className="text-emerald-600 font-black uppercase tracking-widest text-[10px]">{selectedBroker}</span> production environment.
-                                    </p>
-                                    
-                                    <div className="bg-slate-50 p-6 rounded-3xl mb-10 text-left border border-slate-100">
-                                        <div className="flex justify-between items-center mb-2">
-                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Ticker</span>
-                                            <span className="font-black text-slate-900 uppercase">{pendingExecution?.trades?.[0]?.symbol}</span>
-                                        </div>
-                                        <div className="flex justify-between items-center mb-2">
-                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Quantity</span>
-                                            <span className="font-black text-slate-900">{pendingExecution?.trades?.[0]?.quantity} Units</span>
-                                        </div>
-                                        <div className="flex justify-between items-center">
-                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Est. Value</span>
-                                            <span className="font-black text-emerald-600">₹{pendingExecution?.trades?.[0]?.amount?.toLocaleString()}</span>
-                                        </div>
-                                    </div>
-
-                                    <div className="flex flex-col gap-4">
-                                        <button 
-                                            onClick={confirmAndExecute}
-                                            className="w-full py-6 bg-emerald-600 text-white rounded-[24px] font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-emerald-900/20 hover:bg-emerald-700 transition-all active:scale-95"
-                                        >
-                                            Execute Real Order
-                                        </button>
-                                        <button 
-                                            onClick={() => {
-                                                setShowExecuteConfirm(false);
-                                                setPendingExecution(null);
-                                            }} 
-                                            className="w-full py-6 bg-slate-50 text-slate-400 rounded-[24px] font-black text-xs uppercase tracking-[0.2em] hover:bg-slate-100 transition-all"
-                                        >
-                                            Abort Transmission
-                                        </button>
-                                    </div>
+                                <div className="flex flex-col gap-4">
+                                    <button 
+                                        onClick={confirmAndExecute}
+                                        className="w-full py-6 bg-emerald-600 text-white rounded-[24px] font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-emerald-900/20 hover:bg-emerald-700 transition-all active:scale-95"
+                                    >
+                                        Execute Real Order
+                                    </button>
+                                    <button 
+                                        onClick={() => {
+                                            setShowExecuteConfirm(false);
+                                            setPendingExecution(null);
+                                        }} 
+                                        className="w-full py-6 bg-slate-50 text-slate-400 rounded-[24px] font-black text-xs uppercase tracking-[0.2em] hover:bg-slate-100 transition-all"
+                                    >
+                                        Abort Transmission
+                                    </button>
                                 </div>
-                            </motion.div>
-                        </div>
-                    )}
-                </AnimatePresence>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
 
-                <AnimatePresence>
-                    {showModeConfirm && (
-                        <div className="fixed inset-0 z-[200] flex items-center justify-center p-6">
-                            <motion.div 
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                onClick={() => setShowModeConfirm(false)}
-                                className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
-                            />
-                            <motion.div 
-                                initial={{ scale: 0.9, opacity: 0, y: 20 }}
-                                animate={{ scale: 1, opacity: 1, y: 0 }}
-                                className="relative bg-white w-full max-w-lg rounded-[48px] shadow-2xl overflow-hidden border border-slate-100"
-                            >
-                                <div className="p-12 text-center">
-                                    {mode === 'mock' ? (
-                                        <>
-                                            <div className="w-24 h-24 bg-emerald-50 rounded-[32px] flex items-center justify-center mx-auto mb-8 text-emerald-600 shadow-inner">
-                                                <ShieldCheck className="w-10 h-10" />
-                                            </div>
-                                            <h3 className="text-3xl font-black text-slate-900 tracking-tighter italic uppercase mb-4">Engage Live Sync?</h3>
-                                            <p className="text-slate-500 font-medium leading-relaxed mb-10">
-                                                You are about to switch from the <span className="text-orange-600 font-bold uppercase tracking-widest text-[10px]">Mock Environment</span> to <span className="text-emerald-600 font-bold uppercase tracking-widest text-[10px]">Live Production</span>. 
-                                                All trades executed in this mode will involve real capital through your connected broker.
-                                            </p>
-                                            <div className="flex flex-col gap-4">
-                                                <button 
-                                                    onClick={async () => {
-                                                        try {
-                                                            const res = await api.post('/portfolio/sync-broker', { 
-                                                                brokerType: selectedBroker,
-                                                                apiKey: 'PERSISTED_IN_DB' 
-                                                            });
-                                                            if (res.data.loginUrl) {
-                                                                const isExpired = !!user?.brokerAccess;
-                                                                toast.error(isExpired ? 'Session Expired. Please reconnect in Settings.' : 'Broker not authorized. Please visit Settings.');
-                                                                setShowModeConfirm(false);
-                                                                return;
-                                                            }
-                                                            if (res.data.synced >= 0) {
-                                                                setMode('live');
-                                                                setShowModeConfirm(false);
-                                                                fetchData();
-                                                                toast.success(`${selectedBroker.toUpperCase()} Sync Successful`);
-                                                            }
-                                                        } catch (err) {
+            <AnimatePresence>
+                {showModeConfirm && (
+                    <div className="fixed inset-0 z-[200] flex items-center justify-center p-6">
+                        <motion.div 
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            onClick={() => setShowModeConfirm(false)}
+                            className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
+                        />
+                        <motion.div 
+                            initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                            animate={{ scale: 1, opacity: 1, y: 0 }}
+                            exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                            className="relative bg-white w-full max-w-lg rounded-[48px] shadow-2xl overflow-hidden border border-slate-100"
+                        >
+                            <div className="p-12 text-center">
+                                {mode === 'mock' ? (
+                                    <>
+                                        <div className="w-24 h-24 bg-emerald-50 rounded-[32px] flex items-center justify-center mx-auto mb-8 text-emerald-600 shadow-inner">
+                                            <ShieldCheck className="w-10 h-10" />
+                                        </div>
+                                        <h3 className="text-3xl font-black text-slate-900 tracking-tighter italic uppercase mb-4">Engage Live Sync?</h3>
+                                        <p className="text-slate-500 font-medium leading-relaxed mb-10">
+                                            You are about to switch from the <span className="text-orange-600 font-bold uppercase tracking-widest text-[10px]">Mock Environment</span> to <span className="text-emerald-600 font-bold uppercase tracking-widest text-[10px]">Live Production</span>. 
+                                            All trades executed in this mode will involve real capital through your connected broker.
+                                        </p>
+                                        <div className="flex flex-col gap-4">
+                                            <button 
+                                                onClick={async () => {
+                                                    try {
+                                                        const res = await api.post('/portfolio/sync-broker', { 
+                                                            brokerType: selectedBroker,
+                                                            apiKey: 'PERSISTED_IN_DB' 
+                                                        });
+                                                        if (res.data.loginUrl) {
+                                                            const isExpired = !!user?.brokerAccess;
+                                                            toast.error(isExpired ? 'Session Expired. Please reconnect in Settings.' : 'Broker not authorized. Please visit Settings.');
                                                             setShowModeConfirm(false);
-                                                            toast.error(!user?.brokerApiKey ? 'Broker Not Configured. Please visit Settings.' : 'Handshake Failed. Re-authenticate in Settings.');
+                                                            return;
                                                         }
-                                                    }}
-                                                    className="w-full py-6 bg-emerald-600 text-white rounded-[24px] font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-emerald-900/20 hover:bg-emerald-700 transition-all active:scale-95"
-                                                >
-                                                    Activate Production Mode
-                                                </button>
-                                                <button onClick={() => setShowModeConfirm(false)} className="w-full py-6 bg-slate-50 text-slate-400 rounded-[24px] font-black text-xs uppercase tracking-[0.2em] hover:bg-slate-100 transition-all">Stay in Mock Deck</button>
-                                            </div>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <div className="w-24 h-24 bg-orange-50 rounded-[32px] flex items-center justify-center mx-auto mb-8 text-orange-600 shadow-inner">
-                                                <ShieldAlert className="w-10 h-10" />
-                                            </div>
-                                            <h3 className="text-3xl font-black text-slate-900 tracking-tighter italic uppercase mb-4">Enter Simulation?</h3>
-                                            <p className="text-slate-500 font-medium leading-relaxed mb-10">
-                                                You are reverting to the <span className="text-orange-600 font-bold uppercase tracking-widest text-[10px]">Mock Environment</span>. 
-                                                Live broker synchronization will be suspended. All trades will use virtual balance.
-                                            </p>
-                                            <div className="flex flex-col gap-4">
-                                                <button 
-                                                    onClick={() => {
-                                                        setMode('mock');
+                                                        if (res.data.synced >= 0) {
+                                                            setMode('live');
+                                                            localStorage.setItem('tradingMode', 'live');
+                                                            await api.post('/portfolio/mode', { mode: 'live' });
+                                                            setShowModeConfirm(false);
+                                                            fetchData('live');
+                                                            toast.success(`${selectedBroker.toUpperCase()} Sync Successful`);
+                                                        }
+                                                    } catch (err) {
                                                         setShowModeConfirm(false);
-                                                        fetchData();
-                                                        toast.success('Simulation Mode Engaged');
-                                                    }}
-                                                    className="w-full py-6 bg-slate-900 text-white rounded-[24px] font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-slate-900/20 hover:bg-orange-600 transition-all active:scale-95"
-                                                >
-                                                    Switch to Mock Deck
-                                                </button>
-                                                <button onClick={() => setShowModeConfirm(false)} className="w-full py-6 bg-slate-50 text-slate-400 rounded-[24px] font-black text-xs uppercase tracking-[0.2em] hover:bg-slate-100 transition-all">Stay in Live Sync</button>
-                                            </div>
-                                        </>
-                                    )}
+                                                        toast.error(!user?.brokerApiKey ? 'Broker Not Configured. Please visit Settings.' : 'Handshake Failed. Re-authenticate in Settings.');
+                                                    }
+                                                }}
+                                                className="w-full py-6 bg-emerald-600 text-white rounded-[24px] font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-emerald-900/20 hover:bg-emerald-700 transition-all active:scale-95"
+                                            >
+                                                Activate Production Mode
+                                            </button>
+                                            <button onClick={() => setShowModeConfirm(false)} className="w-full py-6 bg-slate-50 text-slate-400 rounded-[24px] font-black text-xs uppercase tracking-[0.2em] hover:bg-slate-100 transition-all">Stay in Mock Deck</button>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <>
+                                        <div className="w-24 h-24 bg-orange-50 rounded-[32px] flex items-center justify-center mx-auto mb-8 text-orange-600 shadow-inner">
+                                            <ShieldAlert className="w-10 h-10" />
+                                        </div>
+                                        <h3 className="text-3xl font-black text-slate-900 tracking-tighter italic uppercase mb-4">Enter Simulation?</h3>
+                                        <p className="text-slate-500 font-medium leading-relaxed mb-10">
+                                            You are reverting to the <span className="text-orange-600 font-bold uppercase tracking-widest text-[10px]">Mock Environment</span>. 
+                                            Live broker synchronization will be suspended. All trades will use virtual balance.
+                                        </p>
+                                        <div className="flex flex-col gap-4">
+                                            <button 
+                                                onClick={async () => {
+                                                    setMode('mock');
+                                                    localStorage.setItem('tradingMode', 'mock');
+                                                    await api.post('/portfolio/mode', { mode: 'mock' });
+                                                    setShowModeConfirm(false);
+                                                    fetchData('mock');
+                                                    toast.success('Simulation Mode Engaged');
+                                                }}
+                                                className="w-full py-6 bg-slate-900 text-white rounded-[24px] font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-slate-900/20 hover:bg-orange-600 transition-all active:scale-95"
+                                            >
+                                                Switch to Mock Deck
+                                            </button>
+                                            <button onClick={() => setShowModeConfirm(false)} className="w-full py-6 bg-slate-50 text-slate-400 rounded-[24px] font-black text-xs uppercase tracking-[0.2em] hover:bg-slate-100 transition-all">Stay in Live Sync</button>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
+
+            {/* AI Pilot Config Modal */}
+            <AnimatePresence>
+                {showPilotModal && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
+                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowPilotModal(false)} className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" />
+                        <motion.div initial={{ scale: 0.9, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.9, opacity: 0, y: 20 }} className="relative bg-white w-full max-w-lg rounded-[48px] shadow-2xl overflow-hidden border border-slate-100">
+                            <div className="p-12 text-center">
+                                <div className="w-24 h-24 bg-orange-50 rounded-[32px] flex items-center justify-center mx-auto mb-8 text-orange-600 shadow-inner">
+                                    <Zap className="w-10 h-10 fill-current" />
                                 </div>
-                            </motion.div>
-                        </div>
-                    )}
-                </AnimatePresence>
+                                <h3 className="text-3xl font-black text-slate-900 tracking-tighter italic uppercase mb-4">Engage AI Pilot</h3>
+                                <p className="text-slate-500 font-medium leading-relaxed mb-10">
+                                    The AI Pilot will actively scan the market, automatically taking profits at +7% and cutting losses at -2%. It will use your {mode === 'mock' ? 'Mock Balance' : 'Broker Funds'} to discover and acquire high-momentum assets.
+                                </p>
+                                <div className="flex gap-4">
+                                    <button onClick={() => setShowPilotModal(false)} className="flex-1 py-6 bg-slate-50 text-slate-400 rounded-[24px] font-black text-xs uppercase tracking-[0.2em] hover:bg-slate-100 transition-all">Cancel</button>
+                                    <button 
+                                        onClick={handleFullEngagement} 
+                                        disabled={isAnalyzing}
+                                        className="flex-1 py-6 bg-orange-600 text-white rounded-[24px] font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-orange-900/20 hover:bg-orange-700 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
+                                    >
+                                        {isAnalyzing ? (
+                                            <>
+                                                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                                Deploying...
+                                            </>
+                                        ) : (
+                                            'Confirm Engage'
+                                        )}
+                                    </button>
+                                </div>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
+
+            {/* Disengage AI Pilot Modal */}
+            <AnimatePresence>
+                {showDisengageModal && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
+                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowDisengageModal(false)} className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" />
+                        <motion.div initial={{ scale: 0.9, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.9, opacity: 0, y: 20 }} className="relative bg-white w-full max-w-lg rounded-[48px] shadow-2xl overflow-hidden border border-slate-100">
+                            <div className="p-12 text-center">
+                                <div className="w-24 h-24 bg-rose-50 rounded-[32px] flex items-center justify-center mx-auto mb-8 text-rose-600 shadow-inner">
+                                    <PowerOff className="w-10 h-10" />
+                                </div>
+                                <h3 className="text-3xl font-black text-slate-900 tracking-tighter italic uppercase mb-4">Disengage Pilot?</h3>
+                                <p className="text-slate-500 font-medium leading-relaxed mb-10">
+                                    Are you sure you want to disable the EquiTrade AI Pilot? It will no longer actively manage your portfolio, and you will be responsible for manually cutting losses and taking profits.
+                                </p>
+                                <div className="flex gap-4">
+                                    <button onClick={() => setShowDisengageModal(false)} className="flex-1 py-6 bg-slate-50 text-slate-400 rounded-[24px] font-black text-xs uppercase tracking-[0.2em] hover:bg-slate-100 transition-all">Cancel</button>
+                                    <button onClick={confirmAIDisable} className="flex-1 py-6 bg-rose-600 text-white rounded-[24px] font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-rose-900/20 hover:bg-rose-700 transition-all active:scale-95">
+                                        Confirm Disengage
+                                    </button>
+                                </div>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
             </AnimatePresence>
         </div>
     );

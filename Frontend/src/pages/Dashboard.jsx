@@ -4,6 +4,7 @@ import { Search, TrendingUp, BarChart3, PieChart, Newspaper, ArrowUpRight, Arrow
 import { motion, AnimatePresence } from 'framer-motion';
 import api from '../api';
 import FeatureLock from '../components/feature-lock';
+import { toast } from 'react-hot-toast';
 
 const Dashboard = () => {
     const [searchQuery, setSearchQuery] = useState('');
@@ -59,6 +60,7 @@ const Dashboard = () => {
     }, [isModalOpen]);
 
     const handleSelection = (stock) => {
+        setAnalysis(null);
         setSearchQuery('');
         setShowSuggestions(false);
         setSelectedStock(stock);
@@ -93,6 +95,7 @@ const Dashboard = () => {
                 setAnalysis(res.data);
             } catch (e) {
                 console.error("Analysis Fetch Error:", e);
+                toast.error(`Unable to resolve analysis for ${selectedStock.symbol}. Verify market data availability.`);
             } finally {
                 setAnalysisLoading(false);
             }
@@ -126,7 +129,10 @@ const Dashboard = () => {
                                 <div
                                     key={res.symbol}
                                     className="px-8 py-4 hover:bg-orange-50 cursor-pointer flex justify-between items-center transition-colors border-b border-slate-50 last:border-0"
-                                    onClick={() => handleSelection(res)}
+                                    onMouseDown={(e) => {
+                                        e.preventDefault();
+                                        handleSelection(res);
+                                    }}
                                 >
                                     <div>
                                         <p className="font-black text-slate-900 tracking-tight">{res.symbol}</p>

@@ -9,13 +9,15 @@
     "predev": "lsof -t -i:5001 | xargs kill -9 || true",
     "dev": "nodemon server.js",
     "prisma:generate": "prisma generate",
-    "prisma:push": "prisma db push"
+    "prisma:push": "prisma db push",
+    "postinstall": "prisma generate"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
     "@prisma/client": "^5.14.0",
     "axios": "^1.6.8",
     "bcryptjs": "^3.0.3",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",

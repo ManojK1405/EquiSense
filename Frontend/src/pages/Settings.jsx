@@ -59,8 +59,18 @@ const Settings = () => {
 
     const isSessionValid = (brokerId) => {
         if (user?.brokerType !== brokerId) return false;
-        if (!user?.brokerAccessExpiry) return false;
-        return new Date(user.brokerAccessExpiry) > new Date();
+        if (!user?.hasBrokerAccess) return false;
+        
+        // If we have an expiry date, check it. 
+        // We add a small 30-minute buffer to account for clock skew
+        if (user?.brokerAccessExpiry) {
+            const expiry = new Date(user.brokerAccessExpiry);
+            const now = new Date();
+            now.setMinutes(now.getMinutes() - 30); 
+            return expiry > now;
+        }
+        
+        return true; // Fallback to true if we have the token but date is missing
     };
 
     const brokers = [

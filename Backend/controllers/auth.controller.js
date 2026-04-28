@@ -1,11 +1,16 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { PrismaClient } from '@prisma/client';
+import prisma from '../utils/prisma.js';
 import { OAuth2Client } from 'google-auth-library';
 
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
-const prisma = new PrismaClient();
+const cookieOptions = {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+};
 
 export const signup = async (req, res) => {
   const { email, password, name } = req.body;
@@ -27,7 +32,8 @@ export const signup = async (req, res) => {
 
     const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET || 'secret', { expiresIn: '7d' });
 
-    res.status(201).json({ user: { id: user.id, email: user.email, name: user.name, brokerType: user.brokerType, brokerAccessExpiry: user.brokerAccessExpiry }, token });
+    res.cookie('token', token, cookieOptions);
+    res.status(201).json({ user: { id: user.id, email: user.email, name: user.name, brokerType: user.brokerType, brokerAccessExpiry: user.brokerAccessExpiry, mockBalance: user.mockBalance, autoPilotMock: user.autoPilotMock, autoPilotLive: user.autoPilotLive, pilotLimitMock: user.pilotLimitMock, pilotLimitLive: user.pilotLimitLive }, token });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Something went wrong' });
@@ -50,7 +56,8 @@ export const login = async (req, res) => {
 
     const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET || 'secret', { expiresIn: '7d' });
 
-    res.status(200).json({ user: { id: user.id, email: user.email, name: user.name, brokerType: user.brokerType, brokerAccessExpiry: user.brokerAccessExpiry }, token });
+    res.cookie('token', token, cookieOptions);
+    res.status(200).json({ user: { id: user.id, email: user.email, name: user.name, brokerType: user.brokerType, brokerAccessExpiry: user.brokerAccessExpiry, mockBalance: user.mockBalance, autoPilotMock: user.autoPilotMock, autoPilotLive: user.autoPilotLive, pilotLimitMock: user.pilotLimitMock, pilotLimitLive: user.pilotLimitLive }, token });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Something went wrong' });
@@ -80,7 +87,6 @@ export const googleLogin = async (req, res) => {
         },
       });
     } else if (!user.googleId) {
-      // Link google account if email matches but googleId is missing
       user = await prisma.user.update({
         where: { email },
         data: { googleId: sub, avatar: picture },
@@ -89,7 +95,8 @@ export const googleLogin = async (req, res) => {
 
     const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET || 'secret', { expiresIn: '7d' });
 
-    res.status(200).json({ user: { id: user.id, email: user.email, name: user.name, avatar: user.avatar, brokerType: user.brokerType, brokerAccessExpiry: user.brokerAccessExpiry }, token });
+    res.cookie('token', token, cookieOptions);
+    res.status(200).json({ user: { id: user.id, email: user.email, name: user.name, avatar: user.avatar, brokerType: user.brokerType, brokerAccessExpiry: user.brokerAccessExpiry, mockBalance: user.mockBalance, autoPilotMock: user.autoPilotMock, autoPilotLive: user.autoPilotLive, pilotLimitMock: user.pilotLimitMock, pilotLimitLive: user.pilotLimitLive }, token });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Google authentication failed' });
@@ -100,10 +107,20 @@ export const getMe = async (req, res) => {
   try {
     const user = await prisma.user.findUnique({
       where: { id: req.userId },
-      select: { id: true, email: true, name: true, avatar: true, brokerType: true, brokerApiKey: true, brokerAccessExpiry: true }
+      select: { id: true, email: true, name: true, avatar: true, brokerType: true, brokerApiKey: true, brokerAccess: true, brokerAccessExpiry: true, mockBalance: true, autoPilotMock: true, autoPilotLive: true, pilotLimitMock: true, pilotLimitLive: true }
     });
-    res.status(200).json(user);
+    const userPayload = {
+      ...user,
+      hasBrokerAccess: !!user.brokerAccess,
+      brokerAccess: undefined
+    };
+    res.status(200).json(userPayload);
   } catch (error) {
     res.status(500).json({ message: 'Error fetching user' });
   }
+};
+
+export const logout = (req, res) => {
+    res.clearCookie('token');
+    res.json({ message: 'Logged out successfully' });
 };

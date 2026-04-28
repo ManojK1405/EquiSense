@@ -24,3 +24,11 @@ export const isMarketOpen = () => {
 
   return currentTimeInMinutes >= openingTime && currentTimeInMinutes <= closingTime;
 };
+
+export const isTradingDay = () => {
+  const now = new Date();
+  const istOffset = 5.5 * 60 * 60 * 1000;
+  const istTime = new Date(now.getTime() + (now.getTimezoneOffset() * 60000) + istOffset);
+  const day = istTime.getDay(); // 0 (Sun) to 6 (Sat)
+  return day !== 0 && day !== 6;
+};

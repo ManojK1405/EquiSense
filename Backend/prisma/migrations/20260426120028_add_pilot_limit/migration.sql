@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "User" ADD COLUMN     "pilotLimit" DOUBLE PRECISION,
+ALTER COLUMN "mockBalance" SET DEFAULT 10000;

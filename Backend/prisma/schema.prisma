@@ -35,8 +35,12 @@ model User {
   brokerApiSecret String?
   brokerAccess        String?
   brokerAccessExpiry  DateTime?
-  mockBalance         Float    @default(10000)  // Starting mock balance set to 10,000
-  autoPilot       Boolean  @default(false)
+  mockBalance         Float    @default(10000)  // Starting mock balance
+  settlementBalance   Float    @default(0)      // Funds pending T+1 settlement
+  autoPilotMock  Boolean  @default(false)
+  autoPilotLive  Boolean  @default(false)
+  pilotLimitMock Float?    // Capital limit for Mock AI Pilot
+  pilotLimitLive Float?    // Capital limit for Live AI Pilot
   tradingMode     String   @default("mock") // mock or live
 
   watchlist Watchlist[]
@@ -45,6 +49,30 @@ model User {
   savedStrategies SavedStrategy[]
   queuedTrades    QueuedTrade[]
   tradeLogs       TradeLog[]
+  settlements     SettlementEntry[]
+  dailyReports    DailyReport[]
+}
+
+model DailyReport {
+  id          String   @id @default(uuid())
+  userId      String
+  date        DateTime @default(now())
+  summary     String?  @db.Text
+  marketStatus String  @default("OPEN") // OPEN or CLOSED
+  analysis    String?  @db.Text // The "Why" behind the day's moves
+  createdAt   DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model SettlementEntry {
+  id          String   @id @default(uuid())
+  userId      String
+  amount      Float
+  releaseDate DateTime // When the funds become available (T+1)
+  status      String   @default("PENDING") // PENDING, RELEASED
+  createdAt   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model QueuedTrade {
@@ -161,6 +189,8 @@ model TradeLog {
   type         String   @default("MOCK") // MOCK or LIVE
   mode         String   @default("MANUAL") // MANUAL or AI_PILOT
   reason       String?  // The "Research" behind the trade
+  strategyId   String?  // ID of the strategy that triggered this trade
+  strategyName String?  // Name of the strategy for quick reference
   timestamp    DateTime @default(now())
 
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)

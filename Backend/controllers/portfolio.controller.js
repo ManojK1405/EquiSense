@@ -1,19 +1,31 @@
-import { PrismaClient } from '@prisma/client';
+import prisma from '../utils/prisma.js';
 import YahooFinance from 'yahoo-finance2';
 import axios from 'axios';
 import { isMarketOpen } from '../utils/marketStatus.js';
+import { getAIStrategy, generateGeminiText } from '../utils/gemini.js';
 import http from 'http';
 import https from 'https';
 
 const ipv4Agent = new https.Agent({ family: 4 });
-
-const prisma = new PrismaClient();
 const yahooFinance = new YahooFinance({ 
     suppressNotices: ['yahooSurvey'],
     validation: { logErrors: false }
 });
 
 // Watchlist
+export const getDailyReports = async (req, res) => {
+  try {
+    const reports = await prisma.dailyReport.findMany({
+      where: { userId: req.userId },
+      orderBy: { date: 'desc' },
+      take: 10
+    });
+    res.json(reports);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch daily reports' });
+  }
+};
+
 export const getWatchlist = async (req, res) => {
   try {
     const watchlist = await prisma.watchlist.findMany({
@@ -127,11 +139,22 @@ export const getPortfolio = async (req, res) => {
                 items: livePortfolio,
                 mockBalance: liveBalance,
                 liveBalance: liveBalance,
-                autoPilot: user.autoPilot,
+                autoPilotMock: user.autoPilotMock,
+                autoPilotLive: user.autoPilotLive,
                 tradingMode: user.tradingMode
             });
         } catch (brokerErr) {
-            console.error('Live fetch failed, falling back to mock:', brokerErr.message);
+            console.error('Live fetch failed:', brokerErr.message);
+            // If live mode explicitly requested and fails, return empty or error, NOT mock fallback
+            return res.json({ 
+                items: [], 
+                mockBalance: 0, 
+                liveBalance: 0,
+                error: 'Broker synchronization failed. Please check your connection.',
+                autoPilotMock: user.autoPilotMock,
+                autoPilotLive: user.autoPilotLive,
+                tradingMode: user.tradingMode
+            });
         }
     }
 
@@ -168,7 +191,9 @@ export const getPortfolio = async (req, res) => {
     res.json({
       items: portfolioWithRealTime,
       mockBalance: user.mockBalance,
-      autoPilot: user.autoPilot,
+      settlementBalance: user.settlementBalance,
+      autoPilotMock: user.autoPilotMock,
+      autoPilotLive: user.autoPilotLive,
       tradingMode: user.tradingMode
     });
   } catch (error) {
@@ -190,23 +215,187 @@ export const addMockBalance = async (req, res) => {
   }
 };
 
-export const toggleAutoPilot = async (req, res) => {
-  const { enabled, mode = 'mock' } = req.body;
+export const engageFullPilot = async (req, res) => {
+  const { amount, riskLevel = 'moderate', sector = 'any' } = req.body;
+  const investAmount = parseFloat(amount);
+
+  if (!investAmount || investAmount <= 0) {
+    return res.status(400).json({ error: 'Valid investment amount is required.' });
+  }
+
   try {
+    // 1. Generate Intelligent Portfolio using Gemini
+    const prompt = `
+        Persona: Institutional Fund Manager.
+        Objective: Construct a high-conviction, diversified portfolio of exactly 5 liquid Indian equity tickers for immediate deployment.
+        
+        Mandate: 
+        - Total Capital: ₹${investAmount}
+        - Risk Tolerance: ${riskLevel}
+        - Sector Focus: ${sector}
+        
+        Output:
+        - Return a JSON object with a "trades" array.
+        - Each trade must have: "name" (symbol with .NS), "amount" (allocation in ₹), "reason" (short institutional logic).
+        - Ensure total allocation sums to exactly ₹${investAmount}.
+        - Format: { "trades": [ { "name": "RELIANCE.NS", "amount": 2500, "reason": "Leading energy conglomerate with robust cash flows" }, ... ] }
+    `;
+
+    const rawStrategy = await getAIStrategy(prompt);
+    const parsed = JSON.parse(rawStrategy);
+    const trades = parsed.trades || [];
+
+    if (!trades.length) throw new Error("AI failed to generate a valid portfolio.");
+
+    // 2. Immediate Execution Logic (Mock Mode for now as per usual Pilot start)
+    // We reuse the internal execution flow
+    const executionResults = [];
+    const preparedTrades = [];
+
+    for (const t of trades) {
+        const quote = await yahooFinance.quote(t.name).catch(() => null);
+        const price = quote?.regularMarketPrice;
+        if (!price) continue;
+
+        const quantity = Math.floor(t.amount / price);
+        if (quantity <= 0) continue;
+
+        const actualAmount = quantity * price;
+        preparedTrades.push({ symbol: t.name, price, quantity, actualAmount, reason: t.reason });
+    }
+
+    const totalActualSpent = preparedTrades.reduce((sum, t) => sum + t.actualAmount, 0);
+
+    // Ensure stocks exist in DB
+    for (const pt of preparedTrades) {
+        let stock = await prisma.stock.findUnique({ where: { symbol: pt.symbol } });
+        if (!stock) stock = await prisma.stock.create({ data: { symbol: pt.symbol } });
+        pt.stockId = stock.id;
+    }
+
+    // Database Transaction: Execute Trades + Enable Pilot
+    if (!isMarketOpen()) {
+        const updateData = { tradingMode: req.body.mode || 'mock' };
+        if (req.body.mode === 'live') {
+            updateData.autoPilotLive = true;
+            updateData.pilotLimitLive = investAmount;
+        } else {
+            updateData.autoPilotMock = true;
+            updateData.pilotLimitMock = investAmount;
+        }
+
+        await prisma.$transaction([
+            prisma.user.update({ where: { id: req.userId }, data: updateData }),
+            prisma.queuedTrade.create({
+                data: {
+                    userId: req.userId,
+                    trades: preparedTrades.map(t => ({ ...t, action: 'BUY' })),
+                    status: 'PENDING',
+                    brokerType: req.body.mode === 'live' ? 'zerodha' : 'mock'
+                }
+            })
+        ]);
+
+        return res.json({
+            message: `Intelligence Engaged. Market is closed. Portfolio of ${preparedTrades.length} assets queued for execution at market open.`,
+            deployed: [],
+            totalInvested: 0
+        });
+    }
+
+    await prisma.$transaction(async (tx) => {
+        const updateData = {
+            tradingMode: 'mock'
+        };
+
+        if (req.body.mode === 'live') {
+            updateData.autoPilotLive = true;
+            updateData.pilotLimitLive = investAmount;
+        } else {
+            updateData.autoPilotMock = true;
+            updateData.pilotLimitMock = investAmount;
+            updateData.mockBalance = { decrement: totalActualSpent };
+        }
+
+        // Update user: Deduct balance + Enable Pilot + Set Limit
+        await tx.user.update({
+            where: { id: req.userId },
+            data: updateData
+        });
+
+        for (const pt of preparedTrades) {
+            await tx.portfolioItem.upsert({
+                where: { userId_stockId: { userId: req.userId, stockId: pt.stockId } },
+                update: {
+                    quantity: { increment: pt.quantity },
+                    totalCost: { increment: pt.actualAmount },
+                    avgPrice: { set: 0 }
+                },
+                create: {
+                    userId: req.userId,
+                    stockId: pt.stockId,
+                    quantity: pt.quantity,
+                    avgPrice: pt.price,
+                    totalCost: pt.actualAmount
+                }
+            });
+
+            await tx.tradeLog.create({
+                data: {
+                    userId: req.userId,
+                    symbol: pt.symbol,
+                    action: 'BUY',
+                    quantity: pt.quantity,
+                    price: pt.price,
+                    totalAmount: pt.actualAmount,
+                    type: req.body.mode === 'live' ? 'LIVE' : 'MOCK',
+                    mode: 'AI_PILOT',
+                    strategyName: 'AI Pilot Initial Deployment',
+                    reason: `Initial Deployment: ${pt.reason}`
+                }
+            });
+            executionResults.push({ symbol: pt.symbol, qty: pt.quantity, status: 'SUCCESS' });
+        }
+    }, { timeout: 30000 });
+
+    res.json({
+        message: `Intelligence Engaged. Portfolio of ${executionResults.length} assets deployed.`,
+        deployed: executionResults,
+        totalInvested: totalActualSpent
+    });
+
+  } catch (error) {
+    console.error('[EngageFullPilot] Error:', error);
+    res.status(500).json({ error: error.message || 'Failed to engage full AI pilot.' });
+  }
+};
+
+export const toggleAutoPilot = async (req, res) => {
+  const { enabled, mode = 'mock', limit = null } = req.body;
+  try {
+    const data = {};
+    if (mode === 'live') {
+      data.autoPilotLive = enabled;
+      if (limit) data.pilotLimitLive = parseFloat(limit);
+    } else {
+      data.autoPilotMock = enabled;
+      if (limit) data.pilotLimitMock = parseFloat(limit);
+    }
+
     const user = await prisma.user.update({
       where: { id: req.userId },
-      data: { 
-        autoPilot: enabled,
-        tradingMode: mode 
-      }
+      data
     });
+
     res.json({ 
-      message: `EquiTrade ${enabled ? 'Enabled' : 'Disabled'}`, 
-      autoPilot: user.autoPilot,
-      tradingMode: user.tradingMode
+      message: `AI Pilot (${mode.toUpperCase()}) ${enabled ? 'Engaged' : 'Disengaged'}`,
+      autoPilotMock: user.autoPilotMock,
+      autoPilotLive: user.autoPilotLive,
+      pilotLimitMock: user.pilotLimitMock,
+      pilotLimitLive: user.pilotLimitLive
     });
   } catch (error) {
-    res.status(500).json({ error: 'Failed to toggle AutoPilot' });
+    res.status(500).json({ error: 'Failed to toggle AI pilot' });
   }
 };
 
@@ -637,36 +826,73 @@ export const executeStrategy = async (req, res) => {
           if (!price) price = (trade.amount / (trade.weight / 100)) || 1;
         }
 
-        const quantity = trade.quantity || Math.floor(trade.amount / price) || 1;
-        preparedTrades.push({ ...trade, symbol, price, quantity });
+        const quantity = trade.quantity || Math.floor(trade.amount / price);
+        const actualAmount = quantity * price;
+        preparedTrades.push({ ...trade, symbol, price, quantity, actualAmount });
       }
 
-      // Step 2: Execute Database Transaction
+      const totalActualSpent = preparedTrades.reduce((sum, t) => sum + (t.actualAmount || 0), 0);
+
+      // Step 2: Ensure all Stock records exist (Outside Transaction)
+      for (const trade of preparedTrades) {
+        if (trade.quantity <= 0) continue; // Skip zero quantity trades
+        let stock = await prisma.stock.findUnique({ where: { symbol: trade.symbol } });
+        if (!stock) {
+          stock = await prisma.stock.create({ data: { symbol: trade.symbol } });
+        }
+        trade.stockId = stock.id;
+      }
+
+      if (!isMarketOpen()) {
+        await prisma.queuedTrade.create({
+          data: {
+            userId: req.userId,
+            trades: preparedTrades.map(t => ({ ...t, action: 'BUY' })),
+            status: 'PENDING',
+            brokerType: 'mock'
+          }
+        });
+
+        // Save the strategy itself as part of deployment
+        await prisma.savedStrategy.create({
+          data: {
+            userId: req.userId,
+            name: `Deployed Strategy ${new Date().toLocaleDateString()}`,
+            data: { trades: preparedTrades, totalCapital: totalActualSpent }
+          }
+        });
+
+        return res.json({ 
+          isQueued: true,
+          message: `Market is closed. Strategy of ₹${capital.toLocaleString()} queued for execution at market open.`
+        });
+      }
+
+      // Step 3: Execute Database Transaction with extended timeout
       await prisma.$transaction(async (tx) => {
-        // Deduct balance
+        // Deduct actual spent balance
         await tx.user.update({
           where: { id: req.userId },
-          data: { mockBalance: { decrement: capital } }
+          data: { mockBalance: { decrement: totalActualSpent } }
         });
 
         for (const trade of preparedTrades) {
-          let stock = await tx.stock.findUnique({ where: { symbol: trade.symbol } });
-          if (!stock) stock = await tx.stock.create({ data: { symbol: trade.symbol } });
+          if (trade.quantity <= 0) continue;
 
           // Upsert Portfolio
           await tx.portfolioItem.upsert({
-            where: { userId_stockId: { userId: req.userId, stockId: stock.id } },
+            where: { userId_stockId: { userId: req.userId, stockId: trade.stockId } },
             update: {
               quantity: { increment: trade.quantity },
-              totalCost: { increment: trade.amount },
+              totalCost: { increment: trade.actualAmount },
               avgPrice: { set: 0 } // Re-calc flag
             },
             create: {
               userId: req.userId,
-              stockId: stock.id,
+              stockId: trade.stockId,
               quantity: trade.quantity,
               avgPrice: trade.price,
-              totalCost: trade.amount
+              totalCost: trade.actualAmount
             }
           });
 
@@ -678,15 +904,28 @@ export const executeStrategy = async (req, res) => {
               action: 'BUY',
               quantity: trade.quantity,
               price: trade.price,
-              totalAmount: trade.amount,
+              totalAmount: trade.actualAmount,
               type: 'MOCK',
               mode: 'MANUAL',
+              strategyId: 'STRAT-' + Date.now(), // Generate a temp ID if none provided
+              strategyName: 'Strategy Blueprint Execution',
               reason: `Strategy Deployment: ${trade.reason || 'Asset Allocation'}`
             }
           });
 
           executionResults.push({ symbol: trade.symbol, quantity: trade.quantity, status: 'SUCCESS' });
         }
+
+        // Optional: Save the strategy itself as part of deployment
+        await tx.savedStrategy.create({
+          data: {
+            userId: req.userId,
+            name: `Deployed Strategy ${new Date().toLocaleDateString()}`,
+            data: { trades: preparedTrades, totalCapital: totalActualSpent }
+          }
+        });
+      }, {
+        timeout: 30000 // 30s timeout to prevent 'Transaction not found' during bulk updates
       });
 
       return res.json({ 
@@ -717,6 +956,16 @@ export const executeStrategy = async (req, res) => {
 
       if (isMarketOpen()) {
         const results = await processTradesImmediately(user.brokerAccess, user.brokerApiSecret, user.brokerType, trades.map(t => ({ ...t, symbol: t.name })));
+        
+        // Save the strategy itself as part of deployment
+        await prisma.savedStrategy.create({
+          data: {
+            userId: req.userId,
+            name: `Live Strategy Deployment ${new Date().toLocaleDateString()}`,
+            data: { trades: trades.map(t => ({ ...t, symbol: t.name })), totalCapital: parseFloat(totalCapital) }
+          }
+        });
+
         return res.json({ 
           message: `Strategy execution initiated via ${user.brokerType?.toUpperCase()}.`, 
           results 
@@ -733,6 +982,16 @@ export const executeStrategy = async (req, res) => {
             status: 'PENDING'
           }
         });
+
+        // Save the strategy itself even if queued
+        await prisma.savedStrategy.create({
+          data: {
+            userId: req.userId,
+            name: `Queued Strategy ${new Date().toLocaleDateString()}`,
+            data: { trades: trades.map(t => ({ ...t, symbol: t.name })), totalCapital: parseFloat(totalCapital) }
+          }
+        });
+
         return res.json({ 
           message: 'Market is closed. Strategy has been queued for execution at next market open.',
           isQueued: true
@@ -820,9 +1079,83 @@ export const processPendingQueue = async () => {
     try {
       console.log(`[Queue] Executing strategy ${item.id} for user ${item.userId} via ${item.brokerType}`);
       
-      // Use the session token (brokerAccess) if it exists, otherwise fall back to API Key
-      const authKey = item.user.brokerAccess || item.brokerApiKey;
-      const results = await processTradesImmediately(authKey, item.brokerApiSecret, item.brokerType || 'zerodha', item.trades);
+      let results = [];
+      
+      if (item.brokerType === 'mock') {
+        const user = await prisma.user.findUnique({ where: { id: item.userId } });
+        let currentMockBalance = user.mockBalance;
+        
+        for (const trade of item.trades) {
+            let price = trade.price;
+            if (!price) {
+                try {
+                    const quote = await yahooFinance.quote(trade.symbol);
+                    price = quote?.regularMarketPrice || 1;
+                } catch(e) { price = 1; }
+            }
+            
+            const totalCost = trade.quantity * price;
+            
+            if (trade.action === 'BUY') {
+                if (currentMockBalance < totalCost) {
+                    results.push({ symbol: trade.symbol, status: 'FAILED', error: 'Insufficient mock funds' });
+                    continue;
+                }
+                
+                let stock = await prisma.stock.findUnique({ where: { symbol: trade.symbol } });
+                if (!stock) stock = await prisma.stock.create({ data: { symbol: trade.symbol } });
+                
+                await prisma.$transaction([
+                    prisma.user.update({ where: { id: item.userId }, data: { mockBalance: { decrement: totalCost } } }),
+                    prisma.portfolioItem.upsert({
+                        where: { userId_stockId: { userId: item.userId, stockId: stock.id } },
+                        update: { quantity: { increment: trade.quantity }, totalCost: { increment: totalCost }, avgPrice: { set: 0 } },
+                        create: { userId: item.userId, stockId: stock.id, quantity: trade.quantity, avgPrice: price, totalCost }
+                    }),
+                    prisma.tradeLog.create({
+                        data: {
+                            userId: item.userId, symbol: trade.symbol, action: 'BUY', quantity: trade.quantity, price, totalAmount: totalCost, type: 'MOCK'
+                        }
+                    })
+                ]);
+                currentMockBalance -= totalCost;
+                results.push({ symbol: trade.symbol, status: 'SUCCESS' });
+                
+            } else if (trade.action === 'SELL') {
+                let stock = await prisma.stock.findUnique({ where: { symbol: trade.symbol } });
+                if (!stock) {
+                    results.push({ symbol: trade.symbol, status: 'FAILED', error: 'Stock not found' });
+                    continue;
+                }
+                
+                const pItem = await prisma.portfolioItem.findUnique({ where: { userId_stockId: { userId: item.userId, stockId: stock.id } } });
+                if (!pItem || pItem.quantity < trade.quantity) {
+                    results.push({ symbol: trade.symbol, status: 'FAILED', error: 'Insufficient quantity to sell' });
+                    continue;
+                }
+                
+                const costOfGoodsSold = (pItem.totalCost / pItem.quantity) * trade.quantity;
+                
+                await prisma.$transaction([
+                    prisma.user.update({ where: { id: item.userId }, data: { mockBalance: { increment: totalCost } } }),
+                    trade.quantity === pItem.quantity 
+                        ? prisma.portfolioItem.delete({ where: { id: pItem.id } })
+                        : prisma.portfolioItem.update({ where: { id: pItem.id }, data: { quantity: { decrement: trade.quantity }, totalCost: { decrement: costOfGoodsSold } } }),
+                    prisma.tradeLog.create({
+                        data: {
+                            userId: item.userId, symbol: trade.symbol, action: 'SELL', quantity: trade.quantity, price, totalAmount: totalCost, type: 'MOCK'
+                        }
+                    })
+                ]);
+                currentMockBalance += totalCost;
+                results.push({ symbol: trade.symbol, status: 'SUCCESS' });
+            }
+        }
+      } else {
+        // Live Trades
+        const authKey = item.user.brokerAccess || item.brokerApiKey;
+        results = await processTradesImmediately(authKey, item.brokerApiSecret, item.brokerType || 'zerodha', item.trades);
+      }
       
       const failed = results.filter(r => r.status === 'FAILED');
       await prisma.queuedTrade.update({
@@ -885,13 +1218,171 @@ export const getBrokerOrders = async (req, res) => {
             return res.json([]); // No live broker connected
         }
 
-        const response = await axios.get('https://api.kite.trade/orders', {
-            headers: { 'X-Kite-Version': '3', 'Authorization': `token ${user.brokerAccess}` }
-        });
-
-        res.json(response.data.data || []);
+        try {
+            const response = await axios.get('https://api.kite.trade/orders', {
+                headers: { 'X-Kite-Version': '3', 'Authorization': `token ${user.brokerAccess}` }
+            });
+            res.json(response.data.data || []);
+        } catch (axiosErr) {
+            if (axiosErr.response?.status === 403 || axiosErr.response?.data?.error_type === 'TokenException') {
+                console.log('[Kite] Session expired for user:', req.userId);
+                // Invalidate the token in DB so UI can prompt for re-auth
+                await prisma.user.update({
+                    where: { id: req.userId },
+                    data: { brokerAccess: null, brokerAccessExpiry: null }
+                });
+                return res.status(403).json({ error: 'Broker session expired. Please re-authenticate in Settings.' });
+            }
+            throw axiosErr;
+        }
     } catch (error) {
-        console.error('Fetch Orders Error:', error);
+        console.error('Fetch Orders Error:', error.message || error);
         res.status(500).json({ error: 'Failed to fetch broker orders' });
     }
+};
+
+export const saveStrategy = async (req, res) => {
+    try {
+        const { name, description, data } = req.body;
+        const strategy = await prisma.savedStrategy.create({
+            data: {
+                userId: req.userId,
+                name,
+                description,
+                data
+            }
+        });
+        res.json(strategy);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to save strategy' });
+    }
+};
+
+export const getSavedStrategies = async (req, res) => {
+    try {
+        const strategies = await prisma.savedStrategy.findMany({
+            where: { userId: req.userId },
+            orderBy: { createdAt: 'desc' }
+        });
+        res.json(strategies);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch strategies' });
+    }
+};
+
+export const deleteSavedStrategy = async (req, res) => {
+    try {
+        const { id } = req.params;
+        await prisma.savedStrategy.delete({
+            where: { id, userId: req.userId }
+        });
+        res.json({ message: 'Strategy deleted successfully' });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to delete strategy' });
+    }
+};
+
+export const analyzePortfolio = async (req, res) => {
+  try {
+    const user = await prisma.user.findUnique({ where: { id: req.userId } });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const items = await prisma.portfolioItem.findMany({
+      where: { userId: req.userId },
+      include: { stock: true }
+    });
+
+    if (items.length === 0) {
+      return res.json({ analysis: "Your portfolio is currently empty. Start by adding stocks or engaging the AI Pilot to begin your wealth journey." });
+    }
+
+    // Prepare portfolio context for Gemini
+    const holdingsContext = items.map(i => `${i.stock.symbol}: ${i.quantity} units @ ₹${i.avgPrice}`).join('\n');
+    
+    const prompt = `
+      Persona: Chief Investment Officer (CIO) at a top-tier global hedge fund.
+      Task: Provide a high-fidelity, institutional-grade analysis of the following portfolio.
+      
+      Current Holdings:
+      ${holdingsContext}
+      
+      Requirements:
+      1. Analyze sector concentration risk.
+      2. Identify potential volatility headwinds based on current holdings.
+      3. Provide exactly 3 actionable "Institutional Moves" (e.g., hedge, trim, or increase exposure).
+      4. Use a professional, insight-heavy tone.
+      5. Format as a clean report with headers: [Concentration], [Risk Exposure], [Strategic Suggestions].
+    `;
+
+    const analysis = await generateGeminiText(prompt);
+    res.json({ analysis });
+  } catch (error) {
+    console.error('Portfolio Analysis Error:', error);
+    res.status(500).json({ error: 'Failed to generate portfolio analysis' });
+  }
+};
+
+export const terminatePosition = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const item = await prisma.portfolioItem.findUnique({
+      where: { id, userId: req.userId },
+      include: { stock: true }
+    });
+
+    if (!item) return res.status(404).json({ error: 'Position not found' });
+
+    // Handle Market Closed: Queue for later
+    if (!isMarketOpen()) {
+        await prisma.queuedTrade.create({
+            data: {
+                userId: req.userId,
+                trades: [{ 
+                    symbol: item.stock.symbol, 
+                    quantity: item.quantity, 
+                    action: 'SELL',
+                    reason: 'Manual Liquidation (Market Closed)'
+                }],
+                status: 'PENDING',
+                brokerType: 'mock' // Defaulting to mock for this specific terminal action
+            }
+        });
+        return res.json({ 
+            message: 'Market is closed. Liquidation has been queued for execution at market open.',
+            isQueued: true
+        });
+    }
+
+    // Market Open: Immediate Liquidation
+    const quote = await yahooFinance.quote(item.stock.symbol).catch(() => null);
+    const currentPrice = quote?.regularMarketPrice || item.avgPrice;
+    const liquidationValue = currentPrice * item.quantity;
+
+    await prisma.$transaction([
+      prisma.user.update({
+        where: { id: req.userId },
+        data: { mockBalance: { increment: liquidationValue } }
+      }),
+      prisma.tradeLog.create({
+        data: {
+          userId: req.userId,
+          symbol: item.stock.symbol,
+          action: 'SELL',
+          quantity: item.quantity,
+          price: currentPrice,
+          totalAmount: liquidationValue,
+          type: 'MOCK',
+          mode: 'MANUAL',
+          strategyName: 'Manual Liquidation',
+          reason: 'Position terminated by user (Market Open)'
+        }
+      }),
+      prisma.portfolioItem.delete({ where: { id: item.id } })
+    ]);
+
+    res.json({ message: 'Position liquidated successfully', proceeds: liquidationValue });
+  } catch (error) {
+    console.error('Liquidation Error:', error);
+    res.status(500).json({ error: 'Failed to liquidate position' });
+  }
 };

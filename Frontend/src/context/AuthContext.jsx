@@ -11,25 +11,21 @@ export const AuthProvider = ({ children }) => {
   const [showAuthModal, setShowAuthModal] = useState(false);
 
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
+  
+  // Configure axios defaults
+  axios.defaults.withCredentials = true;
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      fetchUser(token);
-    } else {
-      setLoading(false);
-    }
+    fetchUser();
   }, []);
 
-  const fetchUser = async (token) => {
+  const fetchUser = async () => {
     try {
-      const response = await axios.get(`${API_URL}/auth/me`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await axios.get(`${API_URL}/auth/me`);
       setUser(response.data);
     } catch (error) {
-      console.error('Failed to fetch user', error);
-      localStorage.removeItem('token');
+      console.log('No active session found');
+      setUser(null);
     } finally {
       setLoading(false);
     }
@@ -37,31 +33,30 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     const response = await axios.post(`${API_URL}/auth/login`, { email, password });
-    const { token, user: userData } = response.data;
-    localStorage.setItem('token', token);
-    setUser(userData);
+    setUser(response.data.user);
     setShowAuthModal(false);
   };
 
   const signup = async (name, email, password) => {
     const response = await axios.post(`${API_URL}/auth/signup`, { name, email, password });
-    const { token, user: userData } = response.data;
-    localStorage.setItem('token', token);
-    setUser(userData);
+    setUser(response.data.user);
     setShowAuthModal(false);
   };
 
   const googleLogin = async (tokenId) => {
     const response = await axios.post(`${API_URL}/auth/google`, { tokenId });
-    const { token, user: userData } = response.data;
-    localStorage.setItem('token', token);
-    setUser(userData);
+    setUser(response.data.user);
     setShowAuthModal(false);
   };
 
-  const logout = () => {
-    localStorage.removeItem('token');
-    setUser(null);
+  const logout = async () => {
+    try {
+        await axios.post(`${API_URL}/auth/logout`);
+    } catch (e) {
+        console.error('Logout error', e);
+    } finally {
+        setUser(null);
+    }
   };
 
   return (
@@ -73,7 +68,8 @@ export const AuthProvider = ({ children }) => {
       googleLogin, 
       logout, 
       showAuthModal, 
-      setShowAuthModal 
+      setShowAuthModal,
+      refreshUser: fetchUser
     }}>
       {children}
     </AuthContext.Provider>
