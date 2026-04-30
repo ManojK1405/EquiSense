@@ -32,16 +32,29 @@ const PORT = process.env.PORT || 5001;
 
 // Import other deps after dotenv
 import YahooFinance from 'yahoo-finance2';
-const yahooFinance = new YahooFinance({ 
-    suppressNotices: ['yahooSurvey'],
-    validation: { logErrors: false }
+const yahooFinance = new YahooFinance({
+  suppressNotices: ['yahooSurvey'],
+  validation: { logErrors: false }
 });
 import cron from 'node-cron';
 
 // Middlewares
+const allowedOrigins = [
+  'http://localhost:5173',
+  'https://equisense.vercel.app',
+  'https://equisense.shop',
+  process.env.FRONTEND_URL
+].filter(Boolean);
+
 app.use(cors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
-    credentials: true
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true
 }));
 app.use(express.json());
 app.use(cookieParser());
