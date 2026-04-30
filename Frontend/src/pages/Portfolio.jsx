@@ -14,7 +14,7 @@ import { toast } from 'react-hot-toast';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { PortfolioSkeleton } from '../components/skeleton';
 
-const COLORS = ['#0f172a', '#ea580c', '#64748b', '#94a3b8', '#cbd5e1', '#334155', '#475569', '#1e293b', '#f97316', '#fb923c'];
+const COLORS = ['#0f172a', '#f43f5e', '#ec4899', '#8b5cf6', '#3b82f6', '#06b6d4', '#10b981', '#f59e0b', '#fb923c', '#94a3b8'];
 
 const Portfolio = () => {
     const { user, refreshUser } = useAuth();
@@ -1084,27 +1084,73 @@ const Portfolio = () => {
                                         </div>
                                         <h2 className="text-sm font-black text-slate-900 tracking-tight">Distribution</h2>
                                     </div>
-                                    <div className="h-[180px] w-full">
-                                        <ResponsiveContainer width="100%" height={180}>
-                                        <PieChart>
-                                            <Pie
-                                                data={distributionData}
-                                                innerRadius={60}
-                                                outerRadius={80}
-                                                paddingAngle={5}
-                                                dataKey="value"
-                                            >
-                                                {distributionData.map((entry, index) => (
-                                                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                                ))}
-                                            </Pie>
-                                            <Tooltip 
-                                                contentStyle={{ backgroundColor: '#fff', borderRadius: '16px', border: 'none', boxShadow: '0 10px 30px rgba(0,0,0,0.1)' }}
-                                                itemStyle={{ fontSize: '10px', fontWeight: '900', textTransform: 'uppercase' }}
-                                            />
-                                        </PieChart>
-                                    </ResponsiveContainer>
-                                </div>
+                                    <div className="h-[240px] w-full relative flex items-center justify-center">
+                                        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-10">
+                                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-0.5">Assets</span>
+                                            <span className="text-base font-black text-slate-900 tracking-tighter">
+                                                {distributionData.length} Hold.
+                                            </span>
+                                        </div>
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <PieChart>
+                                                <Pie
+                                                    data={distributionData}
+                                                    innerRadius={75}
+                                                    outerRadius={95}
+                                                    paddingAngle={10}
+                                                    cornerRadius={14}
+                                                    dataKey="value"
+                                                    stroke="none"
+                                                    animationBegin={0}
+                                                    animationDuration={1200}
+                                                >
+                                                    {distributionData.map((entry, index) => (
+                                                        <Cell 
+                                                            key={`cell-${index}`} 
+                                                            fill={COLORS[index % COLORS.length]} 
+                                                            className="hover:opacity-80 transition-opacity cursor-pointer outline-none"
+                                                        />
+                                                    ))}
+                                                </Pie>
+                                                <Tooltip 
+                                                    content={({ active, payload }) => {
+                                                        if (active && payload && payload.length) {
+                                                            return (
+                                                                <div className="bg-white/90 backdrop-blur-md border border-slate-100 p-4 rounded-2xl shadow-2xl">
+                                                                    <p className="text-[10px] font-black text-slate-900 uppercase tracking-widest mb-1">{payload[0].name}</p>
+                                                                    <p className="text-sm font-black text-rose-600">₹{payload[0].value.toLocaleString()}</p>
+                                                                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter mt-1">
+                                                                        {((payload[0].value / distributionData.reduce((a, b) => a + b.value, 0)) * 100).toFixed(1)}% Weight
+                                                                    </p>
+                                                                </div>
+                                                            );
+                                                        }
+                                                        return null;
+                                                    }}
+                                                />
+                                            </PieChart>
+                                        </ResponsiveContainer>
+                                    </div>
+
+                                    {/* Custom Legend */}
+                                    <div className="mt-6 space-y-2 max-h-[200px] overflow-y-auto pr-2 custom-scrollbar">
+                                        {distributionData.slice(0, 5).map((item, idx) => (
+                                            <div key={idx} className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 border border-slate-100/50 group hover:bg-white hover:border-slate-200 transition-all">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: COLORS[idx % COLORS.length] }} />
+                                                    <span className="text-[10px] font-black text-slate-900 uppercase tracking-tight">{item.name}</span>
+                                                </div>
+                                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest group-hover:text-slate-900 transition-colors">
+                                                    {((item.value / distributionData.reduce((a, b) => a + b.value, 0)) * 100).toFixed(1)}%
+                                                </span>
+                                            </div>
+                                        ))}
+                                        {distributionData.length > 5 && (
+                                            <div className="text-center py-2">
+                                                <span className="text-[9px] font-black text-slate-300 uppercase tracking-[0.2em]">+ {distributionData.length - 5} Others</span>
+                                            </div>
+                                        )}
+                                    </div>
                             </div>
                         </div>
 

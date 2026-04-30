@@ -33,7 +33,7 @@ export const signup = async (req, res) => {
     const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET || 'secret', { expiresIn: '7d' });
 
     res.cookie('token', token, cookieOptions);
-    res.status(201).json({ user: { id: user.id, email: user.email, name: user.name, brokerType: user.brokerType, brokerAccessExpiry: user.brokerAccessExpiry, mockBalance: user.mockBalance, autoPilotMock: user.autoPilotMock, autoPilotLive: user.autoPilotLive, pilotLimitMock: user.pilotLimitMock, pilotLimitLive: user.pilotLimitLive }, token });
+    res.status(201).json({ user: { id: user.id, email: user.email, name: user.name, brokerType: user.brokerType, brokerApiKey: user.brokerApiKey, brokerAccessExpiry: user.brokerAccessExpiry, mockBalance: user.mockBalance, autoPilotMock: user.autoPilotMock, autoPilotLive: user.autoPilotLive, pilotLimitMock: user.pilotLimitMock, pilotLimitLive: user.pilotLimitLive }, token });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Something went wrong' });
@@ -57,7 +57,7 @@ export const login = async (req, res) => {
     const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET || 'secret', { expiresIn: '7d' });
 
     res.cookie('token', token, cookieOptions);
-    res.status(200).json({ user: { id: user.id, email: user.email, name: user.name, brokerType: user.brokerType, brokerAccessExpiry: user.brokerAccessExpiry, mockBalance: user.mockBalance, autoPilotMock: user.autoPilotMock, autoPilotLive: user.autoPilotLive, pilotLimitMock: user.pilotLimitMock, pilotLimitLive: user.pilotLimitLive }, token });
+    res.status(200).json({ user: { id: user.id, email: user.email, name: user.name, brokerType: user.brokerType, brokerApiKey: user.brokerApiKey, brokerAccessExpiry: user.brokerAccessExpiry, mockBalance: user.mockBalance, autoPilotMock: user.autoPilotMock, autoPilotLive: user.autoPilotLive, pilotLimitMock: user.pilotLimitMock, pilotLimitLive: user.pilotLimitLive }, token });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Something went wrong' });
@@ -108,12 +108,14 @@ export const getMe = async (req, res) => {
   try {
     const user = await prisma.user.findUnique({
       where: { id: req.userId },
-      select: { id: true, email: true, name: true, avatar: true, brokerType: true, brokerApiKey: true, brokerAccess: true, brokerAccessExpiry: true, mockBalance: true, autoPilotMock: true, autoPilotLive: true, pilotLimitMock: true, pilotLimitLive: true }
+      select: { id: true, email: true, name: true, avatar: true, brokerType: true, brokerApiKey: true, brokerApiSecret: true, brokerAccess: true, brokerAccessExpiry: true, mockBalance: true, autoPilotMock: true, autoPilotLive: true, pilotLimitMock: true, pilotLimitLive: true }
     });
     const userPayload = {
       ...user,
       hasBrokerAccess: !!user.brokerAccess,
-      brokerAccess: undefined
+      hasBrokerApiSecret: !!user.brokerApiSecret,
+      brokerAccess: undefined,
+      brokerApiSecret: undefined // Hide the actual secret
     };
     res.status(200).json(userPayload);
   } catch (error) {

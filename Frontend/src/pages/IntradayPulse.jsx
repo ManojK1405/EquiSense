@@ -241,7 +241,7 @@ const IntradayPulse = () => {
                             </div>
                         ))}
                         {loading && !marketData && [1, 2, 3].map(i => (
-                            <div key={i} className="h-[96px] bg-slate-50/50 rounded-[32px] animate-pulse border border-slate-100" />
+                            <div key={i} className="h-[96px] bg-slate-200/60 rounded-[32px] animate-pulse border border-slate-100" />
                         ))}
                     </div>
 
@@ -257,7 +257,7 @@ const IntradayPulse = () => {
                                     className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 w-full"
                                 >
                                     {[1, 2, 3, 4, 5, 6].map(i => (
-                                        <div key={i} className="bg-slate-50/50 h-[480px] rounded-[40px] animate-pulse border border-slate-100" />
+                                        <div key={i} className="bg-slate-200/60 h-[480px] rounded-[40px] animate-pulse border border-slate-100" />
                                     ))}
                                 </motion.div>
                             ) : (

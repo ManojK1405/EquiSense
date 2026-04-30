@@ -225,7 +225,7 @@ const Backtester = () => {
                                                                 <History className="w-3 h-3 text-slate-400" />
                                                                 {horizon}-Year Simulation
                                                             </span>
-                                                            <span className="px-4 py-1.5 bg-emerald-50 border border-emerald-100 shadow-sm rounded-lg text-[10px] font-black text-emerald-600 uppercase tracking-widest flex items-center gap-1.5">
+                                                            <span className={`px-4 py-1.5 ${result.historicalValue < amount ? 'bg-rose-50 border-rose-100 text-rose-600' : 'bg-emerald-50 border-emerald-100 text-emerald-600'} border shadow-sm rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5`}>
                                                                 <TrendingUp className="w-3 h-3" />
                                                                 CAGR {result.historicalCAGR}
                                                             </span>
@@ -244,9 +244,9 @@ const Backtester = () => {
                                                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Initial Investment</p>
                                                         <p className="font-black text-slate-900 text-2xl">₹{Number(amount).toLocaleString()}</p>
                                                     </div>
-                                                    <div className="p-8 text-center bg-emerald-50">
-                                                        <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-2">Value Today (Simulated)</p>
-                                                        <p className="font-black text-emerald-700 text-2xl">₹{result.historicalValue?.toLocaleString()}</p>
+                                                    <div className={`p-8 text-center ${result.historicalValue < amount ? 'bg-rose-50' : 'bg-emerald-50'}`}>
+                                                        <p className={`text-[10px] font-black ${result.historicalValue < amount ? 'text-rose-600' : 'text-emerald-600'} uppercase tracking-widest mb-2`}>Value Today (Simulated)</p>
+                                                        <p className={`font-black ${result.historicalValue < amount ? 'text-rose-700' : 'text-emerald-700'} text-2xl`}>₹{result.historicalValue?.toLocaleString()}</p>
                                                     </div>
                                                 </div>
 

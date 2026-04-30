@@ -233,7 +233,7 @@ export const generateReverseStrategy = async (req, res) => {
       Structural Requirements:
       1. Identification: Resolve the specific acquisition target and the client's timeline (in years).
       2. Valuation: Estimate the CURRENT market price of the goal in Indian Rupees (INR).
-      3. Future Value (FV): Project the FUTURE cost by applying a 6% annual baseline inflation rate AND a tactical 2.5% annual manufacturer price-hike factor (compounded annually).
+      3. Future Value (FV): Project the FUTURE cost by applying a conservative 4% annual baseline inflation rate AND a tactical 1.5% annual manufacturer price-hike factor (compounded annually). This totals a ~5.5% annual inflation expectation.
       4. Capital commitment: Calculate the required Monthly SIP (Systematic Investment Plan) needed to reach the FV, assuming a balanced 12.5% annual return on the portfolio.
       5. Execution mix: Provide a specific asset allocation involving the provided tickers (Growth), Debt (Stability), and Gold (Hedge).
       6. Mandatory Specificity: For Debt and Gold, NEVER use generic names (e.g., "Indian Debt Fund", "Gold ETF") in the "assets" string. You MUST provide actual, real Indian ETFs or Mutual Funds (e.g., "Nippon India ETF Gold BeES (GOLDBEES.NS)", "ICICI Prudential Liquid Fund", "SBI Magnum Gilt Fund").
@@ -391,14 +391,15 @@ export const chatStrategy = async (req, res) => {
                (c) Long-term Portfolio (1+ years)
           
           - ALWAYS append .NS to Indian stock symbols when calling tools.
-          - STYLE: Use extreme 'Telegram-style' conciseness. Max 3-5 bullet points for comparisons.
+          - STYLE: Institutional, decisive, and data-dense. Use "Telegram-style" conciseness for analysis.
+          - MANDATORY: All capital allocation recommendations MUST be presented in a clean Markdown Table with the following columns: | Stock Symbol | Weight | Investment Amount | Current Price | RSI | Verdict |.
           - FORMAT:
             1. For direct "Should I buy/sell" questions: Start with **EXECUTION VERDICT: [ACTION]** followed by the Micro Research Note.
             2. For "Analyze [Stock]" or "Outlook for [Stock]", provide a 5-section Micro Research Note.
-            3. For "Why" or "Comparison" (e.g., "Why M&M vs Tata?"), use a concise **Pros/Cons** list or a 3-point bulleted summary.
-            4. For "Invest [Amount]": Gather data on 3-5 stocks, propose a table, and ASK for "CONFIRM MOCK" or "CONFIRM LIVE".
+            3. For "Why" or "Comparison" (e.g., "Why M&M vs Tata?"), use a concise **Institutional Comparison** table or a 3-point bulleted summary.
+            4. For "Invest [Amount]": Gather real-time data on 3-5 relevant stocks, propose a **REVISED BLUEPRINT TABLE**, and ASK for "CONFIRM MOCK" or "CONFIRM LIVE".
             5. If user says "Confirm [Mode]", call the 'deploy_investment_strategy' tool.
-          - TONE: Professional, decisive, and data-dense. Bold all key metrics.
+          - TONE: Senior Quantitative Strategist. Bold all key metrics (e.g., **₹30,000**, **RSI 42**).
         `;
     }
 
@@ -423,35 +424,93 @@ export const backtestStrategy = async (req, res) => {
       return res.status(400).json({ error: 'Missing required parameters for backtest.' });
     }
 
-    const allocString = allocation.map(a => `${a.name} (${a.weight}%)`).join(', ');
+    const startingCapital = parseFloat(amount);
+    const lookbackYears = parseInt(horizon);
+    const now = new Date();
+    const startDate = new Date();
+    startDate.setFullYear(now.getFullYear() - lookbackYears);
 
+    const simulationResults = await Promise.all(allocation.map(async (asset) => {
+      try {
+        const symbol = asset.name;
+        const weight = asset.weight / 100;
+        const allocatedCapital = startingCapital * weight;
+
+        // Fetch historical data
+        const history = await yahooFinance.chart(symbol, {
+          period1: startDate.toISOString().split('T')[0],
+          interval: '1mo', // Monthly resolution for performance simulation
+        }).catch(() => null);
+
+        if (!history || !history.quotes || history.quotes.length === 0) {
+          return { ...asset, startPrice: 0, endPrice: 0, growth: 1, listedRecently: true };
+        }
+
+        const quotes = history.quotes.filter(q => q.close != null);
+        const startQuote = quotes[0];
+        const endQuote = quotes[quotes.length - 1];
+
+        const growth = endQuote.close / startQuote.close;
+        const listingDate = new Date(startQuote.date);
+        const isRecentListing = listingDate > startDate;
+
+        return {
+          ...asset,
+          startPrice: startQuote.close,
+          endPrice: endQuote.close,
+          growth: growth,
+          listingDate: startQuote.date,
+          listedRecently: isRecentListing
+        };
+      } catch (err) {
+        return { ...asset, growth: 1, error: true };
+      }
+    }));
+
+    // Calculate Portfolio Final Value
+    let totalFinalValue = 0;
+    simulationResults.forEach(res => {
+      const assetFinalValue = (startingCapital * (res.weight / 100)) * res.growth;
+      totalFinalValue += assetFinalValue;
+    });
+
+    const totalReturn = ((totalFinalValue - startingCapital) / startingCapital) * 100;
+    const cagr = (Math.pow(totalFinalValue / startingCapital, 1 / lookbackYears) - 1) * 100;
+
+    // Use LLM only for qualitative analysis of these ACTUAL numbers
     const prompt = `
-      Persona: Senior Quantitative Analyst & Risk Manager.
-      Objective: Run a simulated historical backtest for an Indian stock market portfolio.
+      Persona: Senior Quantitative Risk Manager.
+      Task: Analyze the results of a ${lookbackYears}-year historical simulation.
       
-      Portfolio Composition: ${allocString}
-      Initial Investment (T0): ₹${amount}
-      Historical Lookback Period: ${horizon} Years
+      Actual Results:
+      - Initial Investment: ₹${startingCapital.toLocaleString()}
+      - Final Simulated Value: ₹${Math.round(totalFinalValue).toLocaleString()}
+      - Calculated CAGR: ${cagr.toFixed(2)}%
+      - Total Return: ${totalReturn.toFixed(2)}%
       
-      Task:
-      Based on your extensive historical knowledge of these specific stocks over the last ${horizon} years, calculate what this portfolio would be worth TODAY if it had been invested ${horizon} years ago in these exact proportions (assuming no rebalancing).
+      Constituent Performance Details:
+      ${simulationResults.map(r => `- ${r.displayName} (${r.name}): Growth x${r.growth.toFixed(2)} ${r.listedRecently ? `(LISTED RECENTLY: ${r.listingDate})` : ''}`).join('\n')}
       
-      Requirements:
-      1. Provide a realistic "historicalValue" (the final simulated amount in INR). Use integers only.
-      2. Provide the "historicalCAGR" string (e.g. "14.5%").
-      3. Provide a brief 2-3 sentence "analysis" explaining how this portfolio weathered past macro events (e.g. COVID-19, inflation spikes, sector rotations) and assessing its historical drawdown risk.
+      Requirement: 
+      1. Provide a realistic, data-dense "analysis" (2-3 sentences). 
+      2. If any stock was "LISTED RECENTLY" (e.g. OLAELEC), explicitly mention the survivor bias or the fact that capital was assumed to be in cash until the listing date.
+      3. Be brutal about drawdowns for volatile stocks.
       
       Return ONLY a raw JSON object (no markdown):
       {
-        "historicalValue": 1200000,
-        "historicalCAGR": "14.5%",
-        "analysis": "..."
+        "analysis": "String"
       }
     `;
 
-    const rawResponse = await getAIStrategy(prompt);
-    const parsed = JSON.parse(rawResponse);
-    res.json(parsed);
+    const aiAnalysisRaw = await getAIStrategy(prompt);
+    const aiAnalysis = JSON.parse(aiAnalysisRaw.replace(/```json|```/g, '').trim());
+
+    res.json({
+      historicalValue: Math.round(totalFinalValue),
+      historicalCAGR: `${cagr.toFixed(2)}%`,
+      analysis: aiAnalysis.analysis,
+      breakdown: simulationResults
+    });
   } catch (error) {
     console.error('[Backtest Strategy] Error:', error.message);
     res.status(500).json({ error: 'Failed to simulate historical backtest.' });
@@ -466,36 +525,93 @@ export const customBacktestStrategy = async (req, res) => {
       return res.status(400).json({ error: 'Missing required parameters for custom backtest.' });
     }
 
-    const prompt = `
-      Persona: Senior Quantitative Analyst & Risk Manager.
-      Objective: Run a simulated historical backtest for a user's custom Indian stock market strategy.
+    // Step 1: Parse User Input into Allocation using AI
+    const parsePrompt = `
+      Persona: Strategic Portfolio Architect.
+      Task: Parse the following user investment strategy into a structured allocation.
       
-      User Strategy Input: "${userInput}"
-      Initial Investment (T0): ₹${amount}
-      Historical Lookback Period: ${horizon} Years
-      
-      Task:
-      First, deduce the intended portfolio allocation from the user's input (assume NSE/BSE stocks).
-      Then, based on your extensive historical knowledge of these specific stocks over the last ${horizon} years, calculate what this portfolio would be worth TODAY if it had been invested ${horizon} years ago in those proportions.
+      User Input: "${userInput}"
       
       Requirements:
-      1. Provide the "parsedAllocation" as an array of objects: [{ "name": "TICKER.NS", "weight": 50, "displayName": "Company Name" }]. Ensure weights sum to 100.
-      2. Provide a realistic "historicalValue" (the final simulated amount in INR). Use integers only.
-      3. Provide the "historicalCAGR" string (e.g. "14.5%").
-      4. Provide a brief 2-3 sentence "analysis" explaining how this portfolio weathered past macro events and assessing its historical drawdown risk.
-      
-      Return ONLY a raw JSON object (no markdown):
-      {
-        "parsedAllocation": [{"name": "RELIANCE.NS", "weight": 100, "displayName": "Reliance Industries"}],
-        "historicalValue": 1200000,
-        "historicalCAGR": "14.5%",
-        "analysis": "..."
-      }
+      1. Identify the stocks mentioned. Assume NSE/BSE (e.g. RELIANCE.NS).
+      2. Assign realistic weights based on the user's intent. If not specified, distribute equally.
+      3. Return ONLY a raw JSON array of objects: [{ "name": "TICKER.NS", "weight": 50, "displayName": "Company Name" }]. 
+      4. Ensure weights sum to exactly 100.
     `;
 
-    const rawResponse = await getAIStrategy(prompt);
-    const parsed = JSON.parse(rawResponse);
-    res.json(parsed);
+    const rawParse = await getAIStrategy(parsePrompt);
+    const allocation = JSON.parse(rawParse.replace(/```json|```/g, '').trim());
+
+    // Step 2: Run actual data-driven backtest
+    const startingCapital = parseFloat(amount);
+    const lookbackYears = parseInt(horizon);
+    const now = new Date();
+    const startDate = new Date();
+    startDate.setFullYear(now.getFullYear() - lookbackYears);
+
+    const simulationResults = await Promise.all(allocation.map(async (asset) => {
+      try {
+        const history = await yahooFinance.chart(asset.name, {
+          period1: startDate.toISOString().split('T')[0],
+          interval: '1mo',
+        }).catch(() => null);
+
+        if (!history || !history.quotes || history.quotes.length === 0) {
+          return { ...asset, growth: 1, listedRecently: true };
+        }
+
+        const quotes = history.quotes.filter(q => q.close != null);
+        const startQuote = quotes[0];
+        const endQuote = quotes[quotes.length - 1];
+        const growth = endQuote.close / startQuote.close;
+        const listingDate = new Date(startQuote.date);
+
+        return {
+          ...asset,
+          growth: growth,
+          listingDate: startQuote.date,
+          listedRecently: listingDate > startDate
+        };
+      } catch (err) {
+        return { ...asset, growth: 1, error: true };
+      }
+    }));
+
+    let totalFinalValue = 0;
+    simulationResults.forEach(res => {
+      totalFinalValue += (startingCapital * (res.weight / 100)) * res.growth;
+    });
+
+    const totalReturn = ((totalFinalValue - startingCapital) / startingCapital) * 100;
+    const cagr = (Math.pow(totalFinalValue / startingCapital, 1 / lookbackYears) - 1) * 100;
+
+    // Step 3: Qualitative AI Analysis
+    const analysisPrompt = `
+      Persona: Senior Quantitative Risk Manager.
+      Task: Analyze this custom portfolio's ${lookbackYears}-year performance.
+      
+      Results:
+      - Initial: ₹${startingCapital.toLocaleString()}
+      - Final: ₹${Math.round(totalFinalValue).toLocaleString()}
+      - CAGR: ${cagr.toFixed(2)}%
+      
+      Constituents:
+      ${simulationResults.map(r => `- ${r.displayName} (${r.name}): Growth x${r.growth.toFixed(2)} ${r.listedRecently ? `(LISTED: ${r.listingDate})` : ''}`).join('\n')}
+      
+      Requirement: Provide a 2-3 sentence "analysis" focusing on risk and drawdowns.
+      Return ONLY a raw JSON object: { "analysis": "..." }
+    `;
+
+    const aiAnalysisRaw = await getAIStrategy(analysisPrompt);
+    const aiAnalysis = JSON.parse(aiAnalysisRaw.replace(/```json|```/g, '').trim());
+
+    res.json({
+      parsedAllocation: allocation,
+      historicalValue: Math.round(totalFinalValue),
+      historicalCAGR: `${cagr.toFixed(2)}%`,
+      analysis: aiAnalysis.analysis,
+      breakdown: simulationResults
+    });
   } catch (error) {
     console.error('[Custom Backtest] Error:', error.message);
     res.status(500).json({ error: 'Failed to run custom strategy backtest.' });

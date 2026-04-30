@@ -75,9 +75,23 @@ export const releaseSettledFunds = async () => {
 
 import { analyzeStock } from '../utils/analysis.js';
 
+async function getMarketPulse() {
+    try {
+        const quote = await yahooFinance.quote('^NSEI');
+        return {
+            isHealthy: (quote.regularMarketChangePercent || 0) > -1.5, // Avoid entering on crash days
+            niftyPrice: quote.regularMarketPrice
+        };
+    } catch {
+        return { isHealthy: true };
+    }
+}
+
 async function manageUserWealth(user, mode) {
     try {
         if (mode === 'live' && !user.brokerAccess) return;
+
+        const pulse = await getMarketPulse();
 
         // 1. DYNAMIC PORTFOLIO EVALUATION (Technical Signal-based Exit)
         const portfolio = await prisma.portfolioItem.findMany({
@@ -87,10 +101,9 @@ async function manageUserWealth(user, mode) {
 
         for (const item of portfolio) {
             try {
-                // Fetch historical data for technical analysis
                 const endDate = new Date();
                 const startDate = new Date();
-                startDate.setDate(endDate.getDate() - 60); // 60 days for reliable indicators
+                startDate.setDate(endDate.getDate() - 60);
 
                 const historyRaw = await yahooFinance.chart(item.stock.symbol, {
                     period1: startDate.toISOString().split('T')[0],
@@ -98,12 +111,7 @@ async function manageUserWealth(user, mode) {
                 }).catch(() => null);
 
                 const history = historyRaw?.quotes?.map(q => ({
-                    date: q.date,
-                    open: q.open,
-                    high: q.high,
-                    low: q.low,
-                    close: q.close,
-                    volume: q.volume
+                    date: q.date, open: q.open, high: q.high, low: q.low, close: q.close, volume: q.volume
                 })) || [];
 
                 if (history.length < 10) continue;
@@ -112,17 +120,17 @@ async function manageUserWealth(user, mode) {
                 const currentPrice = analysis.currentPrice;
                 const pnlPercent = ((currentPrice * item.quantity - item.totalCost) / item.totalCost) * 100;
 
-                // IMPROVED EXIT LOGIC: Signal-Based + Safety Nets
+                // INSTITUTIONAL EXIT LOGIC: Signal-Based + Protective Stops
                 const shouldSell = 
-                    (analysis.signal.includes('SELL') && pnlPercent > 1.0) || // Take profit if signal turns bearish
-                    (analysis.signal === 'STRONG SELL') || // Exit immediately on crash warning
-                    (pnlPercent > 15.0) || // Hard profit target
-                    (pnlPercent < -4.0); // Hard stop loss (tightened from -5%)
+                    (analysis.signal.includes('SELL') && pnlPercent > 2.0) || // Locking in profit on reversal
+                    (analysis.signal === 'STRONG SELL') || // Emergency exit
+                    (pnlPercent > 20.0) || // Extended profit target
+                    (pnlPercent < -3.5); // Tightened institutional stop loss
 
                 if (shouldSell) {
                     const exitReason = analysis.signal.includes('SELL') 
-                        ? `Technical Reversal: ${item.stock.symbol} generated a ${analysis.signal} signal. Current P&L: ${pnlPercent.toFixed(2)}%.`
-                        : `Risk Protocol: Automated exit triggered at ${pnlPercent.toFixed(2)}% to preserve capital.`;
+                        ? `Institutional Reversal: ${item.stock.symbol} signal flipped to ${analysis.signal}. Finalizing position with ${pnlPercent.toFixed(2)}% P&L.`
+                        : `Risk Protocol: Automated capital preservation at ${pnlPercent.toFixed(2)}% drawdown.`;
                     
                     await executeAutoTrade(user, item.stock.symbol, item.quantity, currentPrice, 'SELL', exitReason, mode);
                     continue;
@@ -133,6 +141,12 @@ async function manageUserWealth(user, mode) {
         }
 
         // 2. INTELLIGENT ASSET ACQUISITION (Multi-Factor Scoring)
+        // Guard: Don't enter new positions if market pulse is unhealthy
+        if (!pulse.isHealthy) {
+            console.log(`[AI-PILOT] Market Pulse Unhealthy (Nifty Downturn). Skipping new acquisitions for user ${user.id}.`);
+            return;
+        }
+
         const totalInvested = portfolio.reduce((sum, item) => sum + item.totalCost, 0);
         const userBalance = mode === 'mock' ? user.mockBalance : (user.pilotLimitLive || 50000); 
         const pilotLimit = mode === 'mock' ? user.pilotLimitMock : user.pilotLimitLive;
@@ -144,20 +158,22 @@ async function manageUserWealth(user, mode) {
             currentBalanceAvailableToAI = userBalance;
         }
 
-        if (portfolio.length < 10 && currentBalanceAvailableToAI > 2000) {
+        // Max 8 positions for optimal diversification focus
+        if (portfolio.length < 8 && currentBalanceAvailableToAI > 5000) {
             const candidate = await findSophisticatedCandidate(user);
             if (candidate && !portfolio.find(p => p.stock.symbol === candidate.symbol)) {
                 const quote = await yahooFinance.quote(candidate.symbol);
                 const price = quote.regularMarketPrice;
                 
+                // Allocation logic: Max 20% of total budget per stock
                 const totalBudget = pilotLimit || (userBalance + totalInvested);
-                const allocationPerStock = totalBudget * 0.15; 
+                const allocationPerStock = totalBudget * 0.20; 
                 
-                const amountToInvest = Math.min(allocationPerStock, currentBalanceAvailableToAI, 200000); 
+                const amountToInvest = Math.min(allocationPerStock, currentBalanceAvailableToAI, 150000); 
                 const qty = Math.floor(amountToInvest / price);
 
                 if (qty > 0) {
-                    await executeAutoTrade(user, candidate.symbol, qty, price, 'BUY', `Growth Strategy: ${candidate.reason}`, mode);
+                    await executeAutoTrade(user, candidate.symbol, qty, price, 'BUY', `Strategic Deployment: ${candidate.reason}`, mode);
                 }
             }
         }
@@ -176,7 +192,7 @@ async function findSophisticatedCandidate(user) {
     const pool = watchlist.length > 5 ? watchlist.map(w => w.stock.symbol) : [...new Set([...watchlist.map(w => w.stock.symbol), ...TARGET_STOCKS])];
     
     try {
-        const scanPool = pool.slice(0, 20);
+        const scanPool = pool.slice(0, 25);
         const candidates = [];
 
         for (const symbol of scanPool) {
@@ -189,18 +205,23 @@ async function findSophisticatedCandidate(user) {
                 interval: '1d'
             }).catch(() => null);
 
-            if (!historyRaw?.quotes || historyRaw.quotes.length < 15) continue;
+            if (!historyRaw?.quotes || historyRaw.quotes.length < 20) continue;
 
             const history = historyRaw.quotes.map(q => ({
                 date: q.date, open: q.open, high: q.high, low: q.low, close: q.close, volume: q.volume
             }));
 
             const analysis = analyzeStock(history);
-            if (analysis.signal === 'STRONG BUY' || (analysis.signal === 'BUY' && analysis.score > 25)) {
+            
+            // INSTITUTIONAL QUALITY FILTER: High Score + Volume Confirmation
+            const hasVolumeConfirmation = analysis.volumeTrend === 'Rising';
+            const isInstitutionalGrade = analysis.score >= 60; 
+
+            if ((analysis.signal === 'STRONG BUY' || analysis.signal === 'BUY') && isInstitutionalGrade && hasVolumeConfirmation) {
                 candidates.push({
                     symbol,
                     score: analysis.score,
-                    reason: `High conviction entry in ${symbol} (Score: ${analysis.score}). ${analysis.reasoning[0] || 'Bullish technical alignment.'}`
+                    reason: `Institutional conviction detected in ${symbol} (Quant Score: ${analysis.score}). Volume trend: ${analysis.volumeTrend}.`
                 });
             }
         }

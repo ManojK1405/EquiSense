@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Brain, Sparkles, Zap, TrendingUp, ShieldCheck, BarChart2, Layers, Share2, Download, RefreshCw, Save, History, PlayCircle, ShieldAlert, Trash2, ArrowRight } from 'lucide-react';
+import { Brain, Sparkles, Zap, TrendingUp, ShieldCheck, BarChart2, Layers, Share2, Download, RefreshCw, Save, History, PlayCircle, ShieldAlert, Trash2, ArrowRight, Activity, Cpu, Briefcase, Landmark, Monitor, Flame, CarFront, Stethoscope, LayoutGrid } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import api from '../api';
 import FeatureLock from '../components/feature-lock';
@@ -31,15 +31,16 @@ const AIStrategist = () => {
     const [executionMode, setExecutionMode] = useState('mock'); // mock | live
     const [executing, setExecuting] = useState(false);
     const [showConfirmModal, setShowConfirmModal] = useState(false);
-    const [activeTab, setActiveTab] = useState('generate'); // generate | saved
+    const [leftActiveTab, setLeftActiveTab] = useState('generate'); // generate | saved
+    const [rightActiveTab, setRightActiveTab] = useState('allocation'); // allocation | intelligence | terminal
     const [savedStrategies, setSavedStrategies] = useState([]);
     const [loadingSaved, setLoadingSaved] = useState(false);
 
     useEffect(() => {
-        if (activeTab === 'saved') {
+        if (leftActiveTab === 'saved') {
             fetchSavedStrategies();
         }
-    }, [activeTab]);
+    }, [leftActiveTab]);
 
     const fetchSavedStrategies = async () => {
         setLoadingSaved(true);
@@ -96,7 +97,7 @@ const AIStrategist = () => {
                 isPublic: false
             });
             if (!isAuto) toast.success('Strategy saved to your vault.');
-            if (activeTab === 'saved') fetchSavedStrategies();
+            if (leftActiveTab === 'saved') fetchSavedStrategies();
         } catch (e) {
             console.error('Save error', e);
             if (!isAuto) toast.error('Failed to save strategy.');
@@ -257,22 +258,22 @@ const AIStrategist = () => {
                             {/* Tab switcher */}
                             <div className="flex bg-slate-100 p-1.5 rounded-2xl border border-slate-200/60 shadow-inner">
                                 <button
-                                    onClick={() => setActiveTab('generate')}
-                                    className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'generate' ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-900/5' : 'text-slate-400 hover:text-slate-600'}`}
+                                    onClick={() => setLeftActiveTab('generate')}
+                                    className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${leftActiveTab === 'generate' ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-900/5' : 'text-slate-400 hover:text-slate-600'}`}
                                 >
                                     <Sparkles className="w-3.5 h-3.5" />
                                     Mandate
                                 </button>
                                 <button
-                                    onClick={() => setActiveTab('saved')}
-                                    className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'saved' ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-900/5' : 'text-slate-400 hover:text-slate-600'}`}
+                                    onClick={() => setLeftActiveTab('saved')}
+                                    className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${leftActiveTab === 'saved' ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-900/5' : 'text-slate-400 hover:text-slate-600'}`}
                                 >
                                     <History className="w-3.5 h-3.5" />
                                     Vault
                                 </button>
                             </div>
 
-                            {activeTab === 'generate' ? (
+                            {leftActiveTab === 'generate' ? (
                                 <div className="space-y-6">
                                     {/* Mandate Form Card */}
                                     <div className="bg-white rounded-[40px] border border-slate-100 shadow-[0_30px_60px_-15px_rgba(0,0,0,0.05)] overflow-hidden">
@@ -301,17 +302,25 @@ const AIStrategist = () => {
                                             <div className="grid grid-cols-1 gap-8">
                                                 <div className="space-y-3">
                                                     <div className="flex justify-between items-end">
-                                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Risk Appetite</label>
+                                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Risk Appetite</label>
                                                         <span className="text-[10px] font-black text-rose-600 bg-rose-50 px-2 py-0.5 rounded-md uppercase">Step 02</span>
                                                     </div>
                                                     <div className="flex gap-2 bg-slate-50 p-1.5 rounded-2xl border border-slate-100">
-                                                        {['conservative', 'moderate', 'aggressive'].map((r) => (
+                                                        {[
+                                                            { id: 'conservative', color: 'emerald' },
+                                                            { id: 'moderate', color: 'amber' },
+                                                            { id: 'aggressive', color: 'rose' }
+                                                        ].map((r) => (
                                                             <button
-                                                                key={r}
-                                                                onClick={() => setMandate({ ...mandate, riskLevel: r })}
-                                                                className={`flex-1 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${mandate.riskLevel === r ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600 hover:bg-white/50'}`}
+                                                                key={r.id}
+                                                                onClick={() => setMandate({ ...mandate, riskLevel: r.id })}
+                                                                className={`flex-1 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${
+                                                                    mandate.riskLevel === r.id 
+                                                                    ? `bg-${r.color}-500 text-white shadow-lg shadow-${r.color}-500/20` 
+                                                                    : 'text-slate-400 hover:text-slate-600 hover:bg-white/50'
+                                                                }`}
                                                             >
-                                                                {r}
+                                                                {r.id}
                                                             </button>
                                                         ))}
                                                     </div>
@@ -319,7 +328,7 @@ const AIStrategist = () => {
 
                                                 <div className="space-y-4">
                                                     <div className="flex items-center justify-between">
-                                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Time Horizon</label>
+                                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Time Horizon</label>
                                                         <span className="px-3 py-1 bg-slate-900 text-white text-[10px] font-black rounded-lg">{mandate.horizon} Years</span>
                                                     </div>
                                                     <div className="px-2">
@@ -336,13 +345,56 @@ const AIStrategist = () => {
                                                         <span>20 Years</span>
                                                     </div>
                                                 </div>
+
+                                                {/* Preferred Sectors */}
+                                                <div className="space-y-3">
+                                                    <div className="flex justify-between items-end">
+                                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Preferred Sector</label>
+                                                        <span className="text-[10px] font-black text-orange-600 bg-orange-50 px-2 py-0.5 rounded-md uppercase">Step 03</span>
+                                                    </div>
+                                                    <div className="grid grid-cols-3 gap-2">
+                                                        {[
+                                                            { id: 'any', label: 'All', icon: LayoutGrid },
+                                                            { id: 'Banking', label: 'Banking', icon: Landmark },
+                                                            { id: 'IT', label: 'IT/Tech', icon: Monitor },
+                                                            { id: 'Energy', label: 'Energy', icon: Flame },
+                                                            { id: 'Auto', label: 'Auto', icon: CarFront },
+                                                            { id: 'Pharma', label: 'Pharma', icon: Stethoscope }
+                                                        ].map((s) => (
+                                                            <button
+                                                                key={s.id}
+                                                                onClick={() => {
+                                                                    if (s.id === 'any') {
+                                                                        setMandate({ ...mandate, sectors: ['any'] });
+                                                                    } else {
+                                                                        const current = mandate.sectors.filter(x => x !== 'any');
+                                                                        if (current.includes(s.id)) {
+                                                                            const next = current.filter(x => x !== s.id);
+                                                                            setMandate({ ...mandate, sectors: next.length ? next : ['any'] });
+                                                                        } else {
+                                                                            setMandate({ ...mandate, sectors: [...current, s.id] });
+                                                                        }
+                                                                    }
+                                                                }}
+                                                                className={`flex flex-col items-center justify-center gap-2 py-4 rounded-2xl border transition-all ${
+                                                                    mandate.sectors.includes(s.id) 
+                                                                    ? 'bg-gradient-to-br from-orange-500 to-rose-600 border-transparent text-white shadow-xl shadow-orange-500/20' 
+                                                                    : 'bg-white border-slate-100 text-slate-400 hover:border-slate-300 hover:bg-slate-50'
+                                                                }`}
+                                                            >
+                                                                <s.icon className={`w-4 h-4 ${mandate.sectors.includes(s.id) ? 'text-white' : ''}`} />
+                                                                <span className="text-[8px] font-black uppercase tracking-widest">{s.label}</span>
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
                                             </div>
 
                                             {/* CTA */}
                                             <button
                                                 onClick={generateFullPlan}
                                                 disabled={loading}
-                                                className="w-full py-5 bg-slate-900 rounded-[24px] text-white font-black text-[12px] uppercase tracking-[0.3em] shadow-2xl shadow-slate-900/20 hover:bg-slate-800 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-4 disabled:opacity-40"
+                                                className="w-full py-5 bg-gradient-to-r from-slate-900 to-slate-800 rounded-[24px] text-white font-black text-[12px] uppercase tracking-[0.3em] shadow-2xl shadow-slate-900/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-4 disabled:opacity-40"
                                             >
                                                 {loading ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Zap className="w-5 h-5 fill-rose-500 text-rose-500" />}
                                                 {loading ? 'Processing Mandate...' : 'Architect Portfolio'}
@@ -362,15 +414,15 @@ const AIStrategist = () => {
                                             
                                             <div className="space-y-4">
                                                 <div className="flex justify-between items-center py-3 border-b border-slate-200/50">
-                                                    <span className="text-[10px] font-bold text-slate-400 uppercase">Diversification</span>
+                                                    <span className="text-[10px] font-bold text-slate-500 uppercase">Diversification</span>
                                                     <span className="text-[10px] font-black text-slate-900">Optimal (3-5 Tickers)</span>
                                                 </div>
                                                 <div className="flex justify-between items-center py-3 border-b border-slate-200/50">
-                                                    <span className="text-[10px] font-bold text-slate-400 uppercase">Risk Alignment</span>
+                                                    <span className="text-[10px] font-bold text-slate-500 uppercase">Risk Alignment</span>
                                                     <span className="text-[10px] font-black text-slate-900 capitalize">{mandate.riskLevel} Profile</span>
                                                 </div>
                                                 <div className="flex justify-between items-center py-3">
-                                                    <span className="text-[10px] font-bold text-slate-400 uppercase">Liquidity Profile</span>
+                                                    <span className="text-[10px] font-bold text-slate-500 uppercase">Liquidity Profile</span>
                                                     <span className="text-[10px] font-black text-emerald-600 uppercase">High (Blue Chip)</span>
                                                 </div>
                                             </div>
@@ -403,7 +455,7 @@ const AIStrategist = () => {
                                                 onClick={() => {
                                                     setStrategy(s.data);
                                                     setMandate({ ...mandate, amount: s.data.totalCapital?.toString() || mandate.amount });
-                                                    setActiveTab('generate');
+                                                    setLeftActiveTab('generate');
                                                 }}
                                             >
                                                 <div className="flex justify-between items-start mb-4">
@@ -487,22 +539,22 @@ const AIStrategist = () => {
                                         ) : strategy ? (
                                             <motion.div key="result" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-10">
                                                 
-                                                {/* Header & Stats Card */}
-                                                <div className="p-12 bg-slate-900 rounded-[40px] relative overflow-hidden shadow-2xl">
-                                                    <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-gradient-to-br from-fuchsia-500/20 to-rose-500/20 blur-[120px] rounded-full -mr-32 -mt-32" />
+                                                {/* Header & Stats Card (Light Mode Refined) */}
+                                                <div className="p-12 bg-white rounded-[40px] relative overflow-hidden shadow-2xl border border-slate-100">
+                                                    <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-gradient-to-br from-fuchsia-500/5 to-rose-500/5 blur-[120px] rounded-full -mr-32 -mt-32" />
                                                     <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-8">
                                                         <div className="flex-1">
                                                             <div className="flex gap-2 mb-6">
-                                                                <span className="px-3 py-1 bg-white/10 backdrop-blur-md border border-white/10 rounded-full text-[9px] font-black text-rose-400 uppercase tracking-widest">{strategy.riskScore} Risk</span>
-                                                                <span className="px-3 py-1 bg-white/10 backdrop-blur-md border border-white/10 rounded-full text-[9px] font-black text-orange-400 uppercase tracking-widest">{strategy.horizon}</span>
+                                                                <span className="px-3 py-1 bg-rose-50 border border-rose-100 rounded-full text-[9px] font-black text-rose-600 uppercase tracking-widest">{strategy.riskScore} Risk</span>
+                                                                <span className="px-3 py-1 bg-orange-50 border border-orange-100 rounded-full text-[9px] font-black text-orange-600 uppercase tracking-widest">{strategy.horizon}</span>
                                                             </div>
-                                                            <h4 className="text-4xl font-black text-white tracking-tighter mb-6 leading-[0.95]">{strategy.strategyTitle}</h4>
-                                                            <p className="text-slate-400 font-bold leading-relaxed text-sm max-w-xl">{strategy.summary}</p>
+                                                            <h4 className="text-4xl font-black text-slate-900 tracking-tighter mb-6 leading-[0.95]">{strategy.strategyTitle}</h4>
+                                                            <p className="text-slate-600 font-bold leading-relaxed text-sm max-w-xl">{strategy.summary}</p>
                                                         </div>
-                                                        <div className="bg-white/5 backdrop-blur-2xl p-8 rounded-[32px] border border-white/10 text-center min-w-[180px] shadow-2xl">
-                                                            <p className="text-[9px] font-black text-white/40 uppercase tracking-widest mb-3">Projected Yield</p>
-                                                            <p className="text-4xl font-black text-emerald-400 tracking-tighter">{strategy.projectedReturnRange}</p>
-                                                            <p className="text-[8px] font-black text-white/20 uppercase tracking-[0.2em] mt-3">Est. Annualized</p>
+                                                        <div className="bg-slate-50 p-8 rounded-[32px] border border-slate-100 text-center min-w-[180px] shadow-sm">
+                                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">Projected Yield</p>
+                                                            <p className="text-4xl font-black text-emerald-600 tracking-tighter">{strategy.projectedReturnRange}</p>
+                                                            <p className="text-[8px] font-black text-slate-300 uppercase tracking-[0.2em] mt-3">Est. Annualized</p>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -513,17 +565,17 @@ const AIStrategist = () => {
                                                         {['Allocation', 'Intelligence', 'Terminal'].map((t) => (
                                                             <button 
                                                                 key={t}
-                                                                onClick={() => setActiveTab(t.toLowerCase())}
-                                                                className={`pb-4 text-[10px] font-black uppercase tracking-widest transition-all relative ${activeTab === t.toLowerCase() ? 'text-slate-900' : 'text-slate-300 hover:text-slate-500'}`}
+                                                                onClick={() => setRightActiveTab(t.toLowerCase())}
+                                                                className={`pb-4 text-[10px] font-black uppercase tracking-widest transition-all relative ${rightActiveTab === t.toLowerCase() ? 'text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}
                                                             >
                                                                 {t}
-                                                                {activeTab === t.toLowerCase() && <motion.div layoutId="activeTabUnderline" className="absolute bottom-0 left-0 right-0 h-1 bg-slate-900 rounded-full" />}
+                                                                {rightActiveTab === t.toLowerCase() && <motion.div layoutId="activeTabUnderline" className="absolute bottom-0 left-0 right-0 h-1 bg-slate-900 rounded-full" />}
                                                             </button>
                                                         ))}
                                                     </div>
 
                                                     <AnimatePresence mode="wait">
-                                                        {activeTab === 'allocation' && (
+                                                        {rightActiveTab === 'allocation' && (
                                                             <motion.div key="alloc" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-8">
                                                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                                                     {strategy.allocation.map((asset, aidx) => (
@@ -558,33 +610,48 @@ const AIStrategist = () => {
                                                                     </button>
                                                                 </div>
 
-                                                                {backtestData && (
-                                                                    <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} className="p-10 bg-emerald-50 border border-emerald-100 rounded-[40px] relative overflow-hidden">
-                                                                        <div className="absolute top-0 right-0 p-8 text-emerald-200/50">
+                                                                {backtestLoading ? (
+                                                                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-20 bg-slate-50 border border-slate-100 rounded-[40px] flex flex-col items-center justify-center gap-6">
+                                                                        <div className="relative">
+                                                                            <RefreshCw className="w-12 h-12 text-slate-200 animate-spin" />
+                                                                            <History className="w-6 h-6 text-slate-400 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+                                                                        </div>
+                                                                        <div className="text-center">
+                                                                            <p className="text-[11px] font-black text-slate-900 uppercase tracking-[0.2em] mb-1">Replaying History</p>
+                                                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Fetching historical liquidity clusters...</p>
+                                                                        </div>
+                                                                    </motion.div>
+                                                                ) : backtestData && (
+                                                                    <motion.div 
+                                                                        initial={{ opacity: 0, scale: 0.98 }} 
+                                                                        animate={{ opacity: 1, scale: 1 }} 
+                                                                        className={`p-10 ${backtestData.historicalValue < mandate.amount ? 'bg-rose-50 border-rose-100' : 'bg-emerald-50 border-emerald-100'} border rounded-[40px] relative overflow-hidden transition-colors duration-500`}
+                                                                    >
+                                                                        <div className={`absolute top-0 right-0 p-8 ${backtestData.historicalValue < mandate.amount ? 'text-rose-200/50' : 'text-emerald-200/50'}`}>
                                                                             <BarChart2 className="w-32 h-32" />
                                                                         </div>
                                                                         <div className="relative z-10">
                                                                             <div className="flex items-center gap-3 mb-8">
-                                                                                <div className="w-10 h-10 rounded-xl bg-emerald-600 flex items-center justify-center text-white shadow-lg">
+                                                                                <div className={`w-10 h-10 rounded-xl ${backtestData.historicalValue < mandate.amount ? 'bg-rose-600' : 'bg-emerald-600'} flex items-center justify-center text-white shadow-lg`}>
                                                                                     <History className="w-5 h-5" />
                                                                                 </div>
                                                                                 <div>
-                                                                                    <h5 className="text-[10px] font-black text-emerald-900 uppercase tracking-widest">Historical Performance Replay</h5>
-                                                                                    <p className="text-[8px] font-black text-emerald-600/60 uppercase">Horizon: {mandate.horizon}Y Backwards</p>
+                                                                                    <h5 className={`text-[10px] font-black ${backtestData.historicalValue < mandate.amount ? 'text-rose-900' : 'text-emerald-900'} uppercase tracking-widest`}>Historical Performance Replay</h5>
+                                                                                    <p className={`text-[8px] font-black ${backtestData.historicalValue < mandate.amount ? 'text-rose-600/60' : 'text-emerald-600/60'} uppercase`}>Horizon: {mandate.horizon}Y Backwards</p>
                                                                                 </div>
                                                                             </div>
                                                                             <div className="grid grid-cols-2 gap-6 mb-8">
-                                                                                <div className="bg-white p-6 rounded-3xl border border-emerald-100 shadow-sm">
+                                                                                <div className={`bg-white p-6 rounded-3xl border ${backtestData.historicalValue < mandate.amount ? 'border-rose-100' : 'border-emerald-100'} shadow-sm`}>
                                                                                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Simulated CAGR</p>
-                                                                                    <p className="text-3xl font-black text-emerald-600">{backtestData.historicalCAGR}</p>
+                                                                                    <p className={`text-3xl font-black ${backtestData.historicalValue < mandate.amount ? 'text-rose-600' : 'text-emerald-600'}`}>{backtestData.historicalCAGR}</p>
                                                                                 </div>
-                                                                                <div className="bg-white p-6 rounded-3xl border border-emerald-100 shadow-sm">
+                                                                                <div className={`bg-white p-6 rounded-3xl border ${backtestData.historicalValue < mandate.amount ? 'border-rose-100' : 'border-emerald-100'} shadow-sm`}>
                                                                                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Portfolio Valuation</p>
                                                                                     <p className="text-3xl font-black text-slate-900">₹{backtestData.historicalValue?.toLocaleString()}</p>
                                                                                 </div>
                                                                             </div>
-                                                                            <div className="p-6 bg-emerald-600/5 rounded-3xl border border-emerald-600/10">
-                                                                                <p className="text-[12px] text-emerald-900 font-bold leading-relaxed italic">"{backtestData.analysis}"</p>
+                                                                            <div className={`p-6 ${backtestData.historicalValue < mandate.amount ? 'bg-rose-600/5 border-rose-600/10' : 'bg-emerald-600/5 border-emerald-600/10'} rounded-3xl border`}>
+                                                                                <p className={`text-[12px] ${backtestData.historicalValue < mandate.amount ? 'text-rose-900' : 'text-emerald-900'} font-bold leading-relaxed italic`}>"{backtestData.analysis}"</p>
                                                                             </div>
                                                                         </div>
                                                                     </motion.div>
@@ -592,7 +659,7 @@ const AIStrategist = () => {
                                                             </motion.div>
                                                         )}
 
-                                                        {activeTab === 'intelligence' && (
+                                                        {rightActiveTab === 'intelligence' && (
                                                             <motion.div key="intel" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-8">
                                                                 <div className="grid grid-cols-1 gap-8">
                                                                     <div className="bg-slate-50 p-12 rounded-[40px] border border-slate-100 relative group overflow-hidden">
@@ -619,58 +686,56 @@ const AIStrategist = () => {
                                                             </motion.div>
                                                         )}
 
-                                                        {activeTab === 'terminal' && (
+                                                        {rightActiveTab === 'terminal' && (
                                                             <motion.div key="terminal" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
-                                                                <div className="p-12 rounded-[48px] bg-slate-900 text-white relative overflow-hidden shadow-2xl border border-white/5">
-                                                                    <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-gradient-to-br from-rose-500/20 via-orange-500/10 to-transparent blur-[120px] rounded-full -mr-48 -mt-48" />
+                                                                <div className="p-8 rounded-[40px] bg-white text-slate-900 relative overflow-hidden shadow-xl border border-slate-100">
+                                                                    <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-gradient-to-br from-orange-500/5 via-rose-500/5 to-transparent blur-[100px] rounded-full -mr-48 -mt-48" />
                                                                     
                                                                     <div className="relative z-10">
-                                                                        <div className="flex items-center justify-between mb-12">
-                                                                            <div className="flex items-center gap-5">
-                                                                                <div className="w-14 h-14 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl flex items-center justify-center shadow-2xl">
-                                                                                    <Zap className="w-8 h-8 text-orange-400 fill-current" />
+                                                                        <div className="flex items-center justify-between mb-8">
+                                                                            <div className="flex items-center gap-4">
+                                                                                <div className="w-12 h-12 bg-slate-900 text-white rounded-xl flex items-center justify-center shadow-lg">
+                                                                                    <Zap className="w-6 h-6 text-orange-400 fill-current" />
                                                                                 </div>
                                                                                 <div>
-                                                                                    <h6 className="text-2xl font-black uppercase tracking-tight italic">Deployment Engine</h6>
-                                                                                    <p className="text-[10px] font-black text-white/30 uppercase tracking-[0.2em]">Ready for multi-order transmission</p>
+                                                                                    <h6 className="text-lg font-black uppercase tracking-tight italic">Deployment Engine</h6>
+                                                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">Ready for transmission</p>
                                                                                 </div>
                                                                             </div>
-                                                                            <div className="flex bg-white/5 p-1.5 rounded-[22px] border border-white/10 backdrop-blur-md">
+                                                                            <div className="flex bg-slate-100 p-1 rounded-[18px] border border-slate-200">
                                                                                 <button 
                                                                                     onClick={() => setExecutionMode('mock')}
-                                                                                    className={`px-8 py-3 rounded-[18px] text-[10px] font-black uppercase tracking-widest transition-all ${executionMode === 'mock' ? 'bg-white text-slate-900 shadow-2xl' : 'text-white/40 hover:text-white'}`}
+                                                                                    className={`px-6 py-2 rounded-[14px] text-[9px] font-black uppercase tracking-widest transition-all ${executionMode === 'mock' ? 'bg-white text-slate-900 shadow-md ring-1 ring-slate-900/5' : 'text-slate-400 hover:text-slate-600'}`}
                                                                                 >
                                                                                     Mock
                                                                                 </button>
                                                                                 <button 
                                                                                     onClick={() => setExecutionMode('live')}
-                                                                                    className={`px-8 py-3 rounded-[18px] text-[10px] font-black uppercase tracking-widest transition-all ${executionMode === 'live' ? 'bg-emerald-600 text-white shadow-2xl' : 'text-white/40 hover:text-white'}`}
+                                                                                    className={`px-6 py-2 rounded-[14px] text-[9px] font-black uppercase tracking-widest transition-all ${executionMode === 'live' ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
                                                                                 >
                                                                                     Live
                                                                                 </button>
                                                                             </div>
                                                                         </div>
-
-                                                                        <div className="grid grid-cols-2 gap-8 mb-12">
-                                                                            <div className="p-8 bg-white/5 backdrop-blur-sm rounded-[32px] border border-white/10 group hover:bg-white/10 transition-all">
-                                                                                <p className="text-[10px] font-black text-white/30 uppercase tracking-widest mb-3">Net Order Volume</p>
-                                                                                <p className="text-4xl font-black tracking-tighter">₹{Number(mandate.amount).toLocaleString()}</p>
+                                                                        <div className="grid grid-cols-2 gap-4 mb-8">
+                                                                            <div className="p-6 bg-slate-50 rounded-[28px] border border-slate-100 group hover:bg-white hover:shadow-lg transition-all">
+                                                                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Net Order Volume</p>
+                                                                                <p className="text-2xl font-black tracking-tighter text-slate-900">₹{Number(mandate.amount).toLocaleString()}</p>
                                                                             </div>
-                                                                            <div className="p-8 bg-white/5 backdrop-blur-sm rounded-[32px] border border-white/10 group hover:bg-white/10 transition-all">
-                                                                                <p className="text-[10px] font-black text-white/30 uppercase tracking-widest mb-3">Transmission Channel</p>
-                                                                                <p className={`text-2xl font-black tracking-tight ${executionMode === 'mock' ? 'text-emerald-400' : (user?.brokerAccess ? 'text-emerald-400' : 'text-rose-400')}`}>
-                                                                                    {executionMode === 'mock' ? 'Paper Trading Secure' : (user?.brokerAccess ? 'Institutional API linked' : 'Auth Required')}
+                                                                            <div className="p-6 bg-slate-50 rounded-[28px] border border-slate-100 group hover:bg-white hover:shadow-lg transition-all">
+                                                                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Transmission Channel</p>
+                                                                                <p className={`text-lg font-black tracking-tight ${executionMode === 'mock' ? 'text-emerald-600' : (user?.brokerAccess ? 'text-emerald-600' : 'text-rose-600')}`}>
+                                                                                    {executionMode === 'mock' ? 'Paper Trading' : (user?.brokerAccess ? 'API Linked' : 'Auth Required')}
                                                                                 </p>
                                                                             </div>
                                                                         </div>
-
                                                                         <button 
                                                                             onClick={handleDeployRequest}
                                                                             disabled={executing || (executionMode === 'live' && !user?.brokerAccess)}
-                                                                            className={`w-full py-7 rounded-[28px] font-black text-[13px] uppercase tracking-[0.5em] transition-all flex items-center justify-center gap-5 shadow-2xl active:scale-[0.98] ${executing ? 'bg-slate-800 text-white/30 cursor-not-allowed' : 'bg-gradient-to-r from-orange-600 via-rose-600 to-fuchsia-600 text-white hover:shadow-orange-600/20 hover:scale-[1.01]'}`}
+                                                                            className={`w-full py-5 rounded-[22px] font-black text-[11px] uppercase tracking-[0.4em] transition-all flex items-center justify-center gap-4 shadow-xl active:scale-[0.98] ${executing ? 'bg-slate-100 text-slate-300 cursor-not-allowed' : 'bg-gradient-to-r from-slate-900 to-slate-800 text-white hover:scale-[1.01] hover:shadow-slate-900/10'}`}
                                                                         >
-                                                                            {executing ? <RefreshCw className="w-6 h-6 animate-spin" /> : <PlayCircle className="w-7 h-7" />}
-                                                                            {executing ? 'Executing Order Batch...' : `Transmit ${executionMode} Strategy`}
+                                                                            {executing ? <RefreshCw className="w-5 h-5 animate-spin" /> : <PlayCircle className="w-6 h-6 text-rose-500" />}
+                                                                            {executing ? 'Transmitting...' : `Execute ${executionMode} Strategy`}
                                                                         </button>
                                                                     </div>
                                                                 </div>

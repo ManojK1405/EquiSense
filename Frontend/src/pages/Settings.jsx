@@ -342,7 +342,7 @@ const Settings = () => {
                                                                     setCredentials(prev => ({ 
                                                                         ...prev, 
                                                                         apiKey: user?.brokerApiKey || '',
-                                                                        apiSecret: '' 
+                                                                        apiSecret: user?.hasBrokerApiSecret ? 'VAULTED_SECRET' : '' 
                                                                     }));
                                                                     setShowBrokerModal(true);
                                                                 }}
@@ -447,8 +447,8 @@ const Settings = () => {
                                             className="w-full p-6 bg-slate-50 border border-slate-100 rounded-3xl text-sm font-black focus:outline-none focus:border-orange-600/30 transition-all" 
                                             value={credentials.apiSecret}
                                             onChange={(e) => setCredentials({...credentials, apiSecret: e.target.value})}
-                                            placeholder="••••••••••••"
-                                            required
+                                            placeholder={user?.hasBrokerApiSecret ? "Stored Securely (••••••••)" : "••••••••••••"}
+                                            required={!user?.hasBrokerApiSecret}
                                         />
                                     </div>
                                     {selectedBroker.id === 'zerodha' && (
@@ -461,7 +461,7 @@ const Settings = () => {
                                                 <button 
                                                     type="button"
                                                     onClick={async () => {
-                                                        if (!credentials.apiKey || !credentials.apiSecret) {
+                                                        if (!credentials.apiKey || (!credentials.apiSecret && !user?.hasBrokerApiSecret)) {
                                                             return toast.error('Enter API Key and Secret first');
                                                         }
                                                         try {
@@ -470,7 +470,7 @@ const Settings = () => {
                                                             await api.post('/portfolio/sync-broker', {
                                                                 brokerType: 'zerodha',
                                                                 apiKey: credentials.apiKey,
-                                                                apiSecret: credentials.apiSecret
+                                                                apiSecret: credentials.apiSecret === 'VAULTED_SECRET' ? 'PERSISTED_IN_DB' : credentials.apiSecret
                                                             });
                                                             
                                                             // STEP 2: Redirect to Zerodha
