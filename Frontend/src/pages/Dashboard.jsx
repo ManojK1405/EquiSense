@@ -1,12 +1,32 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { Search, TrendingUp, BarChart3, PieChart, Newspaper, ArrowUpRight, ArrowDownRight, Globe, Layers, Cpu, RefreshCw, Info, Activity, Zap, Maximize2, Building2, MessageSquare, ChevronDown, ChevronUp, ArrowRight, Target, ShieldCheck, Eye, X, ScanSearch } from 'lucide-react';
+import { Search, TrendingUp, BarChart3, PieChart, Newspaper, ArrowUpRight, ArrowDownRight, Globe, Layers, Cpu, RefreshCw, Info, Activity, Zap, Maximize2, Building2, MessageSquare, ChevronDown, ChevronUp, ArrowRight, Target, ShieldCheck, Eye, X, ScanSearch, Clock, AlertTriangle, ChevronRight, Share2, Download, Trash2, Layout, History } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import api from '../api';
 import { useAuth } from '../context/AuthContext';
 import FeatureLock from '../components/feature-lock';
 import { toast } from 'react-hot-toast';
 import PageHero from '../components/PageHero';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+
+const getTradingViewSymbol = (s) => {
+    if (!s) return 'NIFTY';
+    // TradingView's widgetembed is more forgiving with raw symbols
+    // We prioritize the base ticker (e.g. RELIANCE instead of NSE:RELIANCE)
+    return s.split('.')[0].toUpperCase();
+};
+
+const TradingViewChart = ({ symbol }) => {
+    return (
+        <iframe
+            title="TradingView Real-time Chart"
+            src={`https://s.tradingview.com/widgetembed/?symbol=${symbol}&interval=D&hidesidetoolbar=1&symboledit=1&saveimage=0&toolbarbg=f1f3f6&theme=light&style=1&timezone=Asia/Kolkata&withdateranges=1&showpopupbutton=1&details=1&hotlist=1&calendar=1`}
+            style={{ width: '100%', height: '100%', border: 'none' }}
+            className="rounded-[32px]"
+        />
+    );
+};
 
 const Dashboard = () => {
     const { user } = useAuth();
@@ -30,8 +50,10 @@ const Dashboard = () => {
     const [selectedStock, setSelectedStock] = useState(null);
     const [analysis, setAnalysis] = useState(null);
     const [analysisLoading, setAnalysisLoading] = useState(false);
+    const [showSuccessModal, setShowSuccessModal] = useState(false);
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [activeModalTab, setActiveModalTab] = useState(null);
+    const [activeModalTab, setActiveModalTab] = useState('technical');
+    const [isNewsCollapsed, setIsNewsCollapsed] = useState(true);
 
     const fetchMarket = async () => {
         try {
@@ -63,24 +85,12 @@ const Dashboard = () => {
 
     useEffect(() => {
         if (isModalOpen) {
-            const scrollY = window.scrollY;
-            document.body.style.position = 'fixed';
-            document.body.style.top = `-${scrollY}px`;
-            document.body.style.width = '100%';
-            document.body.style.overflowY = 'scroll'; // Prevent layout shift
+            document.body.style.overflow = 'hidden';
         } else {
-            const scrollY = document.body.style.top;
-            document.body.style.position = '';
-            document.body.style.top = '';
-            document.body.style.width = '';
-            document.body.style.overflowY = '';
-            window.scrollTo(0, parseInt(scrollY || '0') * -1);
+            document.body.style.overflow = '';
         }
         return () => {
-            document.body.style.position = '';
-            document.body.style.top = '';
-            document.body.style.width = '';
-            document.body.style.overflowY = '';
+            document.body.style.overflow = '';
         };
     }, [isModalOpen]);
 
@@ -124,6 +134,7 @@ const Dashboard = () => {
                 setAnalysisLoading(true);
                 const res = await api.get(`/predictions/${selectedStock.symbol}`);
                 setAnalysis(res.data);
+                setShowSuccessModal(true);
             } catch (e) {
                 console.error("Analysis Fetch Error:", e);
                 toast.error(`Unable to resolve analysis for ${selectedStock.symbol}. Verify market data availability.`);
@@ -133,6 +144,13 @@ const Dashboard = () => {
         };
         fetchAnalysis();
     }, [selectedStock]);
+
+    useEffect(() => {
+        if (showSuccessModal) {
+            const timer = setTimeout(() => setShowSuccessModal(false), 3000);
+            return () => clearTimeout(timer);
+        }
+    }, [showSuccessModal]);
 
     return (
         <motion.div 
@@ -146,7 +164,7 @@ const Dashboard = () => {
                 badge={{ icon: ScanSearch, label: 'Institutional Research Terminal', live: true }}
                 title="Research"
                 titleAccent="Terminal"
-                subtitle="Deep quantitative analysis powered by AI. Uncover signals, trends, and institutional flow across Indian and global equities."
+                subtitle="Deep quantitative analysis powered by AI Analyst Chat."
                 accentColor="rose"
                 stats={[
                     { label: 'Markets', value: '50+', color: 'rose' },
@@ -156,7 +174,7 @@ const Dashboard = () => {
                 ]}
             />
 
-            <div className="max-w-7xl mx-auto px-6 pb-12 lg:pb-16">
+            <div className={`${selectedStock ? 'max-w-[95%] px-4' : 'max-w-7xl px-6'} mx-auto pb-12 lg:pb-16 transition-all duration-700`}>
                 {/* ── Premium Search Section ── */}
                 <div className="max-w-3xl mx-auto mb-16 -mt-4">
                     <div className="relative">
@@ -167,8 +185,8 @@ const Dashboard = () => {
                             </div>
                             <input
                                 type="text"
-                                placeholder="Search stocks, indices, ETFs… (e.g. RELIANCE, TCS, AAPL)"
-                                className="w-full pl-14 pr-28 py-5 bg-white border border-slate-200 rounded-[24px] shadow-xl text-base font-medium text-slate-900 placeholder-slate-300 focus:outline-none focus:ring-4 focus:ring-rose-500/10 focus:border-rose-400/60 transition-all"
+                                placeholder="Search NSE/BSE stocks, indices, ETFs… (e.g. RELIANCE, TCS, INFY)"
+                                className="w-full pl-14 pr-28 py-5 glass-panel rounded-[24px] text-base font-medium text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-4 focus:ring-rose-500/10 focus:border-rose-400/60 transition-all shadow-2xl"
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                                 onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
@@ -181,7 +199,7 @@ const Dashboard = () => {
                         {/* Quick chips */}
                         <div className="flex items-center gap-2 mt-3 flex-wrap px-1">
                             <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Popular:</span>
-                            {['RELIANCE', 'TCS', 'HDFC BANK', 'NIFTY 50', 'AAPL'].map((chip) => (
+                            {['RELIANCE', 'TCS', 'HDFC BANK', 'INFY', 'NIFTY 50'].map((chip) => (
                                 <button
                                     key={chip}
                                     onMouseDown={(e) => { e.preventDefault(); setSearchQuery(chip); }}
@@ -220,15 +238,94 @@ const Dashboard = () => {
 
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
 
-                    {/* Market Momentum */}
-                    <div className="lg:col-span-8 space-y-8">
+                    {/* Market Momentum - Expanded to Full Screen */}
+                    <div className="lg:col-span-12 space-y-8">
+                        
+                        {/* Collapsible News Tab */}
+                        <div className="glass-panel rounded-[40px] overflow-hidden shadow-xl transition-all duration-500">
+                            <button 
+                                onClick={() => setIsNewsCollapsed(!isNewsCollapsed)}
+                                className="w-full p-8 flex items-center justify-between hover:bg-slate-50/50 transition-colors"
+                            >
+                                <div className="flex items-center gap-4">
+                                    <div className="w-12 h-12 rounded-2xl bg-slate-900 text-white flex items-center justify-center shadow-xl shadow-slate-900/20">
+                                        <Newspaper className="w-6 h-6 text-orange-500" />
+                                    </div>
+                                    <div className="text-left">
+                                        <h4 className="text-xl heading-institutional text-slate-900">Market Intelligence Feed</h4>
+                                        <p className="label-premium">Real-time Global Headlines & Sentiment Analysis</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-4">
+                                    <span className="px-4 py-1.5 bg-rose-50 text-rose-600 rounded-lg text-[10px] font-black uppercase tracking-widest animate-pulse">
+                                        Live Pulse
+                                    </span>
+                                    {isNewsCollapsed ? <ChevronDown className="w-6 h-6 text-slate-400" /> : <ChevronUp className="w-6 h-6 text-slate-400" />}
+                                </div>
+                            </button>
+
+                            <AnimatePresence>
+                                {!isNewsCollapsed && (
+                                    <motion.div 
+                                        initial={{ height: 0, opacity: 0 }}
+                                        animate={{ height: 'auto', opacity: 1 }}
+                                        exit={{ height: 0, opacity: 0 }}
+                                        transition={{ duration: 0.4, ease: "circOut" }}
+                                    >
+                                        <div className="px-8 pb-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-4 border-t border-slate-100">
+                                            {marketData?.topNews?.map((news, i) => (
+                                                <motion.a 
+                                                    key={i}
+                                                    initial={{ y: 10, opacity: 0 }}
+                                                    animate={{ y: 0, opacity: 1 }}
+                                                    transition={{ delay: i * 0.05 }}
+                                                    href={news.link} 
+                                                    target="_blank" 
+                                                    rel="noreferrer"
+                                                    className="glow-card glass-panel p-6 rounded-3xl group block"
+                                                >
+                                                    <div className="flex items-center gap-2 mb-3">
+                                                        <span className="w-1.5 h-1.5 rounded-full bg-orange-500" />
+                                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{news.publisher}</p>
+                                                    </div>
+                                                    <p className="text-sm font-bold leading-relaxed text-slate-800 group-hover:text-rose-600 transition-colors line-clamp-3">
+                                                        {news.title}
+                                                    </p>
+                                                    <div className="mt-4 flex items-center justify-between">
+                                                        <span className="text-[9px] font-black text-slate-300 uppercase tracking-tighter">Impact Index: High</span>
+                                                        <ArrowRight className="w-4 h-4 text-slate-200 group-hover:text-rose-500 group-hover:translate-x-1 transition-all" />
+                                                    </div>
+                                                </motion.a>
+                                            ))}
+                                        </div>
+                                        <div className="px-8 pb-8">
+                                            <button className="w-full py-4 rounded-2xl bg-slate-900 text-white hover:bg-orange-600 transition-all font-black text-[10px] uppercase tracking-widest">
+                                                Launch Comprehensive News Terminal
+                                            </button>
+                                        </div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                        </div>
                         <div className="bg-white rounded-[40px] border border-slate-200 shadow-sm p-10 overflow-hidden relative">
                             <div className="absolute top-0 right-0 w-64 h-64 bg-orange-500/5 blur-[80px] rounded-full" />
                             <div className="flex justify-between items-center mb-10">
-                                <h3 className="text-2xl font-black text-slate-900 flex items-center gap-3 italic tracking-tight uppercase italic">
-                                    <TrendingUp className="w-6 h-6 text-orange-600" />
-                                    Market Analysis
+                                <h3 className="text-2xl heading-institutional text-slate-900 flex items-center gap-3">
+                                    {selectedStock ? <Activity className="w-6 h-6 text-rose-600 animate-pulse" /> : <TrendingUp className="w-6 h-6 text-orange-600" />}
+                                    {selectedStock ? 'Institutional Research Terminal' : 'Market Analysis Overview'}
                                 </h3>
+                                {selectedStock && (
+                                    <button 
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            setSelectedStock(null);
+                                        }}
+                                        className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition-all shadow-sm"
+                                        title="Close Research Terminal"
+                                    >
+                                        <X className="w-5 h-5" />
+                                    </button>
+                                )}
                             </div>
 
                             <div className="mb-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -242,11 +339,10 @@ const Dashboard = () => {
                             </div>
 
                             {!selectedStock ? (
-                                <div className="aspect-[21/9] w-full bg-slate-50 rounded-[24px] border border-slate-100 flex items-center justify-center">
-                                    <div className="text-center">
-                                        <BarChart3 className="w-16 h-16 text-slate-200 mb-4 mx-auto animate-pulse" />
-                                        <p className="text-slate-400 font-bold text-xs uppercase tracking-widest">Select an asset to load interactive chart</p>
-                                    </div>
+                                <div className="p-10 bg-slate-50/50 rounded-[32px] border border-dashed border-slate-200 flex flex-col items-center justify-center text-center">
+                                    <ScanSearch className="w-12 h-12 text-slate-300 mb-4" />
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-2">Terminal Ready</p>
+                                    <p className="text-sm font-bold text-slate-500 max-w-sm">Search for a stock symbol to launch the institutional research architect.</p>
                                 </div>
                             ) : analysisLoading ? (
                                 <div className="aspect-[21/9] w-full bg-slate-50 rounded-[24px] border border-slate-100 flex flex-col items-center justify-center space-y-4">
@@ -257,43 +353,38 @@ const Dashboard = () => {
                                 <FeatureLock featureName="Institutional Research" description="Unlock deep fundamental analysis, technical signals, and real-time TradingView terminals.">
                                 <div className="space-y-6 text-left animate-in fade-in slide-in-from-bottom-4 duration-700">
                                     {/* Header Section */}
-                                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 bg-white p-10 rounded-[40px] border border-slate-100 shadow-sm relative overflow-hidden">
-                                        <div className="absolute top-0 right-0 w-64 h-64 bg-orange-600/5 blur-[100px] rounded-full -mr-32 -mt-32" />
-                                        <div>
-                                            <div className="flex items-center gap-4 mb-3">
-                                                <h4 className="text-4xl font-black text-slate-900 tracking-tight">{analysis.symbol}</h4>
-                                                <span className="px-4 py-1.5 rounded-full bg-orange-50 text-orange-600 text-[10px] font-black uppercase tracking-[0.2em] border border-orange-100">{analysis.sector || 'Equities'}</span>
+                                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8 glass-panel p-8 rounded-[40px] relative overflow-hidden">
+                                        <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-orange-500/10 to-rose-500/10 blur-[80px] rounded-full -mr-32 -mt-32 pointer-events-none" />
+                                        
+                                        <div className="flex items-center gap-6 relative z-10">
+                                            <div className="w-20 h-20 rounded-[28px] glass-panel border-white/50 flex items-center justify-center text-3xl heading-institutional text-slate-900">
+                                                {analysis.symbol[0]}
                                             </div>
-                                            <p className="text-lg font-bold text-slate-400 uppercase tracking-widest">{analysis.name}</p>
+                                            <div>
+                                                <div className="flex items-center gap-3 mb-1.5">
+                                                    <h4 className="text-3xl font-black tracking-tight text-slate-900 uppercase">{analysis.symbol}</h4>
+                                                    <span className="px-3 py-1 rounded-full bg-slate-50 text-slate-500 text-[9px] font-black uppercase tracking-[0.2em] border border-slate-100">{analysis.sector || 'Equities'}</span>
+                                                </div>
+                                                <p className="text-xs font-bold text-slate-400 uppercase tracking-[0.2em] truncate max-w-[300px]">{analysis.name}</p>
+                                            </div>
                                         </div>
-                                        <div className="flex items-center gap-8">
-                                            <div className="text-right">
-                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Live Price</p>
-                                                <div className="flex items-baseline gap-2">
-                                                    <span className="text-4xl font-black text-slate-900">₹{analysis.currentPrice?.toLocaleString()}</span>
-                                                    <div className="flex flex-col items-end">
-                                                        <span className={`text-sm font-black ${analysis.fundamentals?.regularMarketChangePercent >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                                                            {analysis.fundamentals?.regularMarketChangePercent >= 0 ? '▲' : '▼'} {Math.abs(analysis.fundamentals?.regularMarketChangePercent || 0).toFixed(2)}%
-                                                        </span>
-                                                        <span className="text-[8px] font-black text-slate-300 uppercase tracking-widest">Today</span>
-                                                    </div>
+
+                                        <div className="flex items-center gap-10 relative z-10">
+                                            <div className="text-right flex flex-col justify-center border-r border-slate-100 pr-10">
+                                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Live Market</p>
+                                                <div className="flex items-center gap-3">
+                                                    <span className="text-3xl font-black text-slate-900">₹{analysis.currentPrice?.toLocaleString()}</span>
+                                                    <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black tracking-widest ${analysis.fundamentals?.regularMarketChangePercent >= 0 ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-rose-50 text-rose-600 border border-rose-100'}`}>
+                                                        {analysis.fundamentals?.regularMarketChangePercent >= 0 ? '▲' : '▼'} {Math.abs(analysis.fundamentals?.regularMarketChangePercent || 0).toFixed(2)}%
+                                                    </span>
                                                 </div>
                                             </div>
-                                            <div className="flex flex-col gap-3">
-                                                <div className={`px-10 py-5 rounded-[24px] font-black text-sm uppercase tracking-[0.2em] shadow-xl shadow-orange-900/10 flex items-center gap-4 transition-all hover:scale-105 ${analysis.signal.includes('BUY') ? 'bg-emerald-600 text-white shadow-emerald-900/20' :
-                                                        analysis.signal.includes('SELL') ? 'bg-rose-600 text-white shadow-rose-900/20' : 'bg-slate-900 text-white'
-                                                    }`}>
-                                                    <Target className="w-5 h-5" />
-                                                    {analysis.signal}
-                                                </div>
-                                                <Link 
-                                                    to="/products/ai-strategist" 
-                                                    className="flex items-center justify-center gap-2 px-6 py-3 rounded-2xl bg-orange-50 border border-orange-100 text-[10px] font-black text-orange-600 uppercase tracking-widest hover:bg-orange-600 hover:text-white transition-all group/cta"
-                                                >
-                                                    <Zap className="w-3.5 h-3.5 fill-current animate-pulse" />
-                                                    Generate AI Investment Plan
-                                                    <ArrowRight className="w-3.5 h-3.5 group-hover/cta:translate-x-1 transition-transform" />
-                                                </Link>
+
+                                            <div className={`px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-sm flex items-center justify-center gap-3 transition-all ${analysis.signal.includes('BUY') || analysis.signal.includes('LONG') ? 'bg-emerald-600 text-white shadow-emerald-900/20 hover:bg-emerald-700' :
+                                                    analysis.signal.includes('SELL') || analysis.signal.includes('SHORT') ? 'bg-rose-600 text-white shadow-rose-900/20 hover:bg-rose-700' : 'bg-slate-900 text-white hover:bg-slate-800'
+                                                }`}>
+                                                <Target className="w-4 h-4" />
+                                                {analysis.signal}
                                             </div>
                                         </div>
                                     </div>
@@ -302,7 +393,7 @@ const Dashboard = () => {
                                     <div className="relative group/chart">
                                         <div className="absolute top-6 right-6 z-10 flex gap-2 opacity-0 group-hover/chart:opacity-100 transition-all duration-300 translate-y-2 group-hover/chart:translate-y-0">
                                             <a 
-                                                href={`https://www.tradingview.com/chart/?symbol=${analysis.symbol.split('.')[0]}`} 
+                                                href={`https://www.tradingview.com/chart/?symbol=${getTradingViewSymbol(analysis.symbol)}`} 
                                                 target="_blank" 
                                                 rel="noreferrer"
                                                 className="px-4 py-2 bg-white/90 backdrop-blur-md border border-slate-200 rounded-xl shadow-lg flex items-center gap-2 text-[10px] font-black text-slate-900 uppercase tracking-widest hover:bg-orange-600 hover:text-white hover:border-orange-600 transition-all"
@@ -312,10 +403,8 @@ const Dashboard = () => {
                                             </a>
                                         </div>
                                         <div className="aspect-[21/9] w-full bg-white rounded-[32px] border border-slate-100 overflow-hidden shadow-sm">
-                                            <iframe 
-                                                key={analysis.symbol}
-                                                src={`https://s.tradingview.com/widgetembed/?frameElementId=tradingview_76d4d&symbol=${analysis.symbol.split('.')[0]}&interval=D&hidesidetoolbar=1&hidetoptoolbar=1&symboledit=1&saveimage=1&toolbarbg=f1f3f6&studies=%5B%5D&theme=light&style=1&timezone=Asia%2FKolkata&studies_overrides=%7B%7D&overrides=%7B%7D&enabled_features=%5B%5D&disabled_features=%5B%5D&locale=en&utm_source=localhost&utm_medium=widget&utm_campaign=chart&utm_term=${analysis.symbol.split('.')[0]}`}
-                                                style={{ width: '100%', height: '100%', border: 'none' }}
+                                            <TradingViewChart 
+                                                symbol={getTradingViewSymbol(analysis.symbol)}
                                             />
                                         </div>
                                     </div>
@@ -353,10 +442,10 @@ const Dashboard = () => {
                                                 title: 'AI Sentiment Analysis',
                                                 icon: ArrowUpRight,
                                                 color: 'fuchsia',
-                                                summary: `₹${analysis.fundamentals?.fiftyTwoWeekHigh?.toLocaleString()}`,
+                                                summary: `${analysis.score}/100`,
                                                 labels: [
-                                                    { label: '52W Peak', val: `₹${analysis.fundamentals?.fiftyTwoWeekHigh?.toLocaleString()}` },
-                                                    { label: '52W Floor', val: `₹${analysis.fundamentals?.fiftyTwoWeekLow?.toLocaleString()}` },
+                                                    { label: 'AI Quant Score', val: `${analysis.score}/100` },
+                                                    { label: 'Institutional Pivot', val: `₹${analysis.fundamentals?.fiftyTwoWeekHigh?.toLocaleString()}` },
                                                     { label: 'AI Bias', val: analysis.sentiment > 0 ? 'Bullish' : 'Bearish', isTrend: true },
                                                     { label: 'Daily Range', val: `₹${(analysis.trendAnalysis?.ohlcv?.high - analysis.trendAnalysis?.ohlcv?.low).toFixed(2)}` }
                                                 ]
@@ -374,7 +463,11 @@ const Dashboard = () => {
                                         ))}
                                     </div>
 
-                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                                     <div className="space-y-8">
+                                         {/* Institutional Analyst Chat - Promoted to Top */}
+                                         <ResearchChat analysis={analysis} />
+
+                                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                                         <div className="bg-slate-900 rounded-[40px] p-10 text-white relative overflow-hidden group">
                                             <div className="absolute top-0 right-0 w-64 h-64 bg-orange-600/10 blur-[100px] rounded-full group-hover:bg-orange-600/20 transition-all duration-1000" />
                                             <h5 className="flex items-center gap-3 text-xs font-black uppercase tracking-[0.2em] mb-10 text-orange-400">
@@ -465,17 +558,18 @@ const Dashboard = () => {
                                                  </div>
                                              </div>
 
-                                            <div className="bg-orange-600 rounded-[40px] p-8 relative overflow-hidden shadow-xl shadow-orange-900/20 group/note">
-                                                <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 blur-[40px] rounded-full -mr-16 -mt-16 group-hover/note:bg-white/20 transition-all duration-700" />
-                                                <h5 className="text-[10px] font-black uppercase tracking-[0.3em] mb-4 text-orange-200 flex items-center gap-2">
+                                            <div className="bg-slate-900 rounded-[40px] p-8 relative overflow-hidden shadow-[0_20px_40px_-10px_rgba(0,0,0,0.3)] ring-1 ring-white/5 group/note">
+                                                <div className="absolute top-0 right-0 w-48 h-48 bg-orange-500/10 blur-[60px] rounded-full -mr-20 -mt-20 group-hover/note:bg-orange-500/20 transition-all duration-700" />
+                                                <h5 className="text-[10px] font-black uppercase tracking-[0.3em] mb-4 text-orange-400 flex items-center gap-2 relative z-10">
                                                     <Zap className="w-4 h-4 fill-current" />
                                                     AI Strategy Insights
                                                 </h5>
-                                                <p className="text-sm font-bold text-white leading-relaxed italic relative z-10">
+                                                <p className="text-sm font-bold text-slate-300 leading-relaxed italic relative z-10">
                                                     "The asset is showing {analysis.score > 40 ? 'exceptional bullish' : analysis.score > 0 ? 'steady positive' : 'volatile or bearish'} characteristics. Institutional flow suggests {analysis.signal.toLowerCase()} positions are being {analysis.signal.includes('BUY') ? 'aggressively accumulated' : 'systematically unwound'} at these levels."
                                                 </p>
                                             </div>
                                         </div>
+                                    </div>
                                     </div>
                                 </div>
                                 </FeatureLock>
@@ -528,74 +622,33 @@ const Dashboard = () => {
                         </div>
                     </div>
 
-                    {/* Side Feed */}
-                    <div className="lg:col-span-4 space-y-8">
-                        <div className="bg-slate-900 rounded-[40px] p-8 text-white shadow-2xl shadow-slate-900/20 relative overflow-hidden group/news">
-                            <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500/10 blur-3xl rounded-full -mr-16 -mt-16 group-hover/news:bg-orange-500/20 transition-all duration-700" />
-                            <h4 className="text-xl font-black mb-8 flex items-center gap-3 italic tracking-tight">
-                                <Newspaper className="w-6 h-6 text-orange-500" />
-                                Market News
-                            </h4>
-                            <div className="space-y-8 relative z-10">
-                                {marketData?.topNews?.map((news, i) => (
-                                    <div key={i} className="group cursor-pointer">
-                                        <div className="flex items-center gap-2 mb-2">
-                                            <span className="w-1 h-1 rounded-full bg-orange-500" />
-                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">{news.publisher}</p>
-                                        </div>
-                                        <a href={news.link} target="_blank" rel="noreferrer" className="text-[15px] font-bold leading-snug hover:text-orange-400 transition-colors block">
-                                            {news.title}
-                                        </a>
-                                        <div className="mt-4 w-full h-px bg-slate-800 group-last:hidden" />
-                                    </div>
-                                ))}
-                                <button className="w-full py-4 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all font-black text-[10px] uppercase tracking-[0.2em] mt-4">
-                                    Browse All Intelligence
-                                </button>
-                            </div>
-                        </div>
-
-                        <div className="bg-white rounded-[40px] border border-slate-200 shadow-sm p-8">
-                             <h4 className="text-lg font-bold text-slate-900 mb-6 tracking-tight italic flex items-center gap-2">
-                                <Eye className="w-5 h-5 text-orange-500" />
-                                Recently Analyzed
-                             </h4>
-                             {recentStocks.length === 0 ? (
-                                 <div className="flex flex-col items-center justify-center py-8 text-center">
-                                     <Search className="w-10 h-10 text-slate-200 mb-3" />
-                                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No stocks analyzed yet</p>
-                                     <p className="text-[10px] text-slate-300 font-medium mt-1">Search for a stock above to get started</p>
-                                 </div>
-                             ) : (
-                                 <div className="space-y-3">
-                                    {recentStocks.map((stock, idx) => (
-                                        <motion.button
-                                            key={stock.symbol}
-                                            initial={{ opacity: 0, x: -10 }}
-                                            animate={{ opacity: 1, x: 0 }}
-                                            transition={{ delay: idx * 0.05 }}
-                                            onClick={() => handleSelection(stock)}
-                                            className="w-full flex justify-between items-center p-4 rounded-2xl hover:bg-orange-50 hover:border-orange-100 transition-all border border-transparent group text-left"
-                                        >
-                                            <div className="flex items-center gap-4">
-                                                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-rose-500 flex items-center justify-center font-black text-white text-sm shadow-md shadow-orange-500/20">
-                                                    {stock.symbol[0]}
-                                                </div>
-                                                <div>
-                                                    <p className="font-black text-slate-900 text-sm tracking-tight">{stock.symbol}</p>
-                                                    <p className="text-[10px] text-slate-400 font-medium truncate max-w-[120px]">{stock.name}</p>
-                                                </div>
-                                            </div>
-                                            <ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-orange-500 group-hover:translate-x-1 transition-all" />
-                                        </motion.button>
-                                    ))}
-                                 </div>
-                             )}
-                        </div>
-                    </div>
 
                 </div>
             </div>
+
+            <AnimatePresence>
+                {showSuccessModal && (
+                    <motion.div 
+                        initial={{ opacity: 0, x: 20, y: -20 }}
+                        animate={{ opacity: 1, x: 0, y: 0 }}
+                        exit={{ opacity: 0, x: 20, scale: 0.95 }}
+                        className="fixed top-8 right-8 z-[300] bg-white border border-slate-100 p-5 rounded-[28px] shadow-[0_32px_64px_-16px_rgba(0,0,0,0.15)] flex items-center gap-5 ring-1 ring-slate-900/5 min-w-[320px]"
+                    >
+                        <div className="w-12 h-12 rounded-2xl bg-emerald-500 flex items-center justify-center shadow-lg shadow-emerald-500/20 shrink-0">
+                            <ShieldCheck className="w-6 h-6 text-white" />
+                        </div>
+                        <div>
+                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Analysis Protocol</p>
+                            <h4 className="text-sm font-black text-slate-900 tracking-tight">
+                                {selectedStock?.symbol} Research Finalized
+                            </h4>
+                        </div>
+                        <div className="ml-auto pl-4 border-l border-slate-50">
+                            <Activity className="w-4 h-4 text-emerald-500 animate-pulse" />
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
             <AnimatePresence>
                 {isModalOpen && analysis && (
@@ -604,7 +657,7 @@ const Dashboard = () => {
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}
-                            className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
+                            className="absolute inset-0 bg-slate-900/60 backdrop-blur-xl"
                             onClick={() => setIsModalOpen(false)}
                         />
                         <motion.div 
@@ -612,7 +665,7 @@ const Dashboard = () => {
                             animate={{ opacity: 1, scale: 1, y: 0 }}
                             exit={{ opacity: 0, scale: 0.9, y: 20 }}
                             onWheel={(e) => e.stopPropagation()}
-                            className="bg-white w-full max-w-5xl h-[90vh] rounded-[48px] shadow-2xl relative overflow-hidden flex flex-col"
+                            className="bg-white w-full max-w-5xl h-[90vh] rounded-[40px] shadow-[0_40px_100px_-20px_rgba(0,0,0,0.25)] ring-1 ring-slate-900/5 relative overflow-hidden flex flex-col"
                         >
                             <div className="p-10 border-b border-slate-100 flex justify-between items-center bg-white sticky top-0 z-10">
                                 <div className="flex items-center gap-6">
@@ -839,55 +892,51 @@ const Dashboard = () => {
 
 const ExpandableCard = ({ card, analysis, onClick }) => {
     const colorMap = {
-        orange: { bg: 'bg-orange-50', text: 'text-orange-600', ring: 'ring-orange-500/10', border: 'hover:border-orange-200', btn: 'group-hover:bg-orange-50 group-hover:text-orange-600' },
-        emerald: { bg: 'bg-emerald-50', text: 'text-emerald-600', ring: 'ring-emerald-500/10', border: 'hover:border-emerald-200', btn: 'group-hover:bg-emerald-50 group-hover:text-emerald-600' },
-        fuchsia: { bg: 'bg-fuchsia-50', text: 'text-fuchsia-600', ring: 'ring-fuchsia-500/10', border: 'hover:border-fuchsia-200', btn: 'group-hover:bg-fuchsia-50 group-hover:text-fuchsia-600' },
+        emerald: 'from-emerald-500 to-teal-600 shadow-emerald-500/20',
+        orange: 'from-orange-500 to-rose-600 shadow-orange-500/20',
+        fuchsia: 'from-fuchsia-500 to-purple-600 shadow-fuchsia-500/20'
     };
-
-    const styles = colorMap[card.color] || colorMap.orange;
 
     return (
         <motion.div 
-            whileHover={{ y: -8, transition: { duration: 0.3, ease: 'easeOut' } }}
-            className={`bg-white rounded-[48px] border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden transition-all duration-500 hover:border-orange-200 hover:shadow-[0_20px_50px_rgba(59,130,246,0.1)] cursor-pointer group relative aspect-square flex flex-col`}
+            whileHover={{ y: -8, scale: 1.02 }}
             onClick={onClick}
+            className="glow-card glass-panel p-8 rounded-[40px] cursor-pointer group h-full flex flex-col"
         >
-            <div className="absolute top-0 right-0 w-32 h-32 bg-slate-50 rounded-full blur-[60px] -mr-16 -mt-16 group-hover:bg-orange-50 transition-colors duration-700" />
+            <div className="flex justify-between items-start mb-10">
+                <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${colorMap[card.color]} flex items-center justify-center text-white shadow-xl transform group-hover:rotate-6 transition-all duration-500`}>
+                    <card.icon className="w-7 h-7" />
+                </div>
+                <div className="text-right">
+                    <p className="label-premium mb-1">{card.title.split(' ')[0]}</p>
+                    <p className="text-2xl heading-institutional text-slate-900">{card.summary}</p>
+                </div>
+            </div>
+
+            <h4 className="text-sm font-black text-slate-900 mb-6 tracking-tight flex items-center gap-2">
+                {card.title}
+                <ArrowUpRight className="w-4 h-4 text-slate-300 group-hover:text-slate-900 group-hover:translate-x-1 group-hover:-translate-y-1 transition-all" />
+            </h4>
             
-            <div className="p-8 flex-1 flex flex-col justify-between relative z-10">
-                <div className="flex justify-between items-start">
-                    <div className="flex items-center gap-4">
-                        <div className={`w-14 h-14 rounded-[20px] ${styles.bg} flex items-center justify-center transition-all duration-500 group-hover:scale-110 shrink-0 shadow-sm border border-white`}>
-                            <card.icon className={`w-7 h-7 ${styles.text}`} />
+            <div className="space-y-4 mt-auto">
+                {card.labels.map((l, i) => (
+                    <div key={i} className="space-y-2">
+                        <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
+                            <span className="text-slate-400">{l.label}</span>
+                            <span className={l.isTrend ? (l.val.toLowerCase().includes('bull') || l.val.toLowerCase().includes('up') ? 'text-emerald-500' : 'text-rose-500') : 'text-slate-900'}>
+                                {l.val}
+                            </span>
                         </div>
-                        <div className="space-y-0.5">
-                            <h4 className="text-lg font-black text-slate-900 tracking-tight leading-tight uppercase">{card.title}</h4>
-                            <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">1m Insight</p>
+                        <div className="progress-bar-premium">
+                            <motion.div 
+                                initial={{ width: 0 }}
+                                animate={{ width: l.isTrend ? (l.val.toLowerCase().includes('bull') || l.val.toLowerCase().includes('up') ? '80%' : '30%') : '65%' }}
+                                transition={{ duration: 1.5, ease: "easeOut" }}
+                                className={`progress-bar-fill ${card.color === 'emerald' ? 'from-emerald-500 to-teal-500' : card.color === 'orange' ? 'from-orange-500 to-rose-500' : 'from-fuchsia-500 to-purple-500'}`} 
+                            />
                         </div>
                     </div>
-                    <div className="w-9 h-9 rounded-full bg-slate-50/80 backdrop-blur-md flex items-center justify-center text-slate-300 group-hover:bg-orange-600 group-hover:text-white transition-all duration-500 shadow-sm">
-                        <Maximize2 className="w-4 h-4" />
-                    </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                    {card.labels.map((item, idx) => (
-                        <div key={idx} className="p-3 rounded-2xl bg-slate-50/50 border border-slate-100/50 hover:bg-white transition-all duration-300 flex flex-col justify-center">
-                            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 leading-none">{item.label}</p>
-                            <p className={`text-[11px] font-black tracking-tighter leading-tight ${item.isTrend ? (item.val?.toLowerCase().includes('down') || item.val?.toLowerCase().includes('bear') ? 'text-rose-500' : 'text-emerald-500') : 'text-slate-900'}`}>
-                                {item.val}
-                            </p>
-                        </div>
-                    ))}
-                </div>
-
-                <div className="h-1 w-full bg-slate-50 rounded-full overflow-hidden">
-                    <motion.div 
-                        initial={{ width: 0 }}
-                        animate={{ width: '100%' }}
-                        className={`h-full bg-gradient-to-r ${card.color === 'emerald' ? 'from-emerald-400 to-emerald-600' : card.color === 'orange' ? 'from-orange-400 to-orange-600' : 'from-fuchsia-400 to-fuchsia-600'} opacity-20`}
-                    />
-                </div>
+                ))}
             </div>
         </motion.div>
     );
@@ -905,6 +954,103 @@ const DataRow = ({ label, value }) => {
             <span className={`text-sm font-black transition-colors ${cleanValue(value) === 'N/A' ? 'text-slate-300' : 'text-slate-900'}`}>
                 {cleanValue(value)}
             </span>
+        </div>
+    );
+};
+
+const ResearchChat = ({ analysis }) => {
+    const [messages, setMessages] = useState([
+        { role: 'assistant', content: `I've completed my institutional analysis of **${analysis.symbol}**. The signal is currently **${analysis.signal}**. How can I help you dive deeper into the data?` }
+    ]);
+    const [input, setInput] = useState('');
+    const [loading, setLoading] = useState(false);
+
+    const handleSend = async () => {
+        if (!input.trim() || loading) return;
+        const newMsg = { role: 'user', content: input };
+        setMessages(prev => [...prev, newMsg]);
+        setInput('');
+        setLoading(true);
+
+        try {
+            const res = await api.post('/strategy/chat', { 
+                messages: [...messages, newMsg],
+                mode: 'research',
+                context: `The user is researching this specific stock: ${analysis.symbol}. Current price: ${analysis.currentPrice}. Signal: ${analysis.signal}. Fundamentals: ${JSON.stringify(analysis.fundamentals)}`
+            });
+            setMessages(prev => [...prev, res.data]);
+        } catch (e) {
+            toast.error('Research Assistant Connection Lost');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const scrollRef = useRef(null);
+    useEffect(() => {
+        if (scrollRef.current) {
+            scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+        }
+    }, [messages, loading]);
+
+    return (
+        <div className="mt-8 border-t border-slate-100 bg-white p-10 rounded-[40px] shadow-sm border border-slate-100">
+            <div className="flex items-center gap-3 mb-8">
+                <div className="w-10 h-10 rounded-2xl bg-slate-900 flex items-center justify-center text-white shadow-lg">
+                    <Cpu className="w-5 h-5 text-orange-400" />
+                </div>
+                <div>
+                    <h6 className="text-xs heading-institutional text-slate-900">Institutional Analyst Chat</h6>
+                    <p className="label-premium">Direct Line to AI Research Architect</p>
+                </div>
+            </div>
+
+            <div 
+                ref={scrollRef}
+                className="space-y-6 mb-10 max-h-[500px] overflow-y-auto px-4 custom-research-scrollbar scroll-smooth"
+            >
+                {messages.map((m, idx) => (
+                    <div key={idx} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                        <div className={`max-w-[85%] p-6 rounded-[28px] text-sm font-medium leading-relaxed ${
+                            m.role === 'user' 
+                            ? 'bg-slate-900 text-white rounded-tr-none shadow-xl shadow-slate-900/10' 
+                            : 'bg-slate-50 border border-slate-100 text-slate-700 rounded-tl-none shadow-sm'
+                        }`}>
+                            <div className="markdown-content">
+                                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                    {m.content}
+                                </ReactMarkdown>
+                            </div>
+                        </div>
+                    </div>
+                ))}
+                {loading && (
+                    <div className="flex justify-start">
+                        <div className="bg-slate-50 border border-slate-100 p-6 rounded-[28px] rounded-tl-none shadow-sm flex gap-2">
+                            <div className="w-1.5 h-1.5 bg-orange-400 rounded-full animate-bounce" />
+                            <div className="w-1.5 h-1.5 bg-orange-400 rounded-full animate-bounce [animation-delay:0.2s]" />
+                            <div className="w-1.5 h-1.5 bg-orange-400 rounded-full animate-bounce [animation-delay:0.4s]" />
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            <div className="relative">
+                <input 
+                    className="w-full bg-white border border-slate-200 rounded-2xl py-4 pl-6 pr-16 text-sm font-medium focus:outline-none focus:border-orange-400 focus:ring-4 focus:ring-orange-500/5 transition-all shadow-sm"
+                    placeholder="Ask about technical targets, fundamental risks..."
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                />
+                <button 
+                    onClick={handleSend}
+                    disabled={loading}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 bg-slate-900 text-white rounded-xl flex items-center justify-center hover:bg-orange-600 transition-all disabled:opacity-50"
+                >
+                    <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                </button>
+            </div>
         </div>
     );
 };

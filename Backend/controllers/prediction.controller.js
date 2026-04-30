@@ -139,10 +139,12 @@ export const getStockPrediction = async (req, res) => {
         fiftyTwoWeekHigh: quote.fiftyTwoWeekHigh || 0,
         fiftyTwoWeekLow: quote.fiftyTwoWeekLow || 0,
         regularMarketVolume: quote.regularMarketVolume || 0,
-        regularMarketOpen: quote.regularMarketOpen || 0
+        regularMarketOpen: quote.regularMarketOpen || 0,
+        regularMarketChangePercent: quote.regularMarketChangePercent || 0,
+        exchange: quote.exchange || quote.fullExchangeName || ''
       };
     } else {
-      analysis.fundamentals = { marketCap: 0, peRatio: 0, dividendYield: 0, beta: 0, eps: 0, marketState: 'N/A', fiftyTwoWeekHigh: 0, fiftyTwoWeekLow: 0, regularMarketVolume: 0, regularMarketOpen: 0 };
+      analysis.fundamentals = { marketCap: 0, peRatio: 0, dividendYield: 0, beta: 0, eps: 0, marketState: 'N/A', fiftyTwoWeekHigh: 0, fiftyTwoWeekLow: 0, regularMarketVolume: 0, regularMarketOpen: 0, regularMarketChangePercent: 0 };
     }
 
     // Assemble final structured response
@@ -167,6 +169,7 @@ export const getStockPrediction = async (req, res) => {
         fiftyTwoWeekLow: quote?.fiftyTwoWeekLow || 0,
         regularMarketVolume: quote?.regularMarketVolume || 0,
         regularMarketOpen: quote?.regularMarketOpen || 0,
+        regularMarketChangePercent: quote?.regularMarketChangePercent || 0,
         roe: financials.returnOnEquity || 0,
         roa: stats.returnOnAssets || 0,
         currentRatio: financials.currentRatio || 0,

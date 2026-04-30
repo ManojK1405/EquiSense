@@ -39,7 +39,7 @@ export default function Footer() {
                         <span className='text-3xl font-black text-slate-900 tracking-tighter italic uppercase underline decoration-orange-600 decoration-4 underline-offset-4'>Equi<span className='text-premium'>Sense</span></span>
                     </Link>
                     <p className="max-w-xs leading-relaxed">
-                        Institutional-grade quantitative research and AI-driven wealth strategies for the modern investor.
+                        Founded by Manoj Kalasgonda, EquiSense provides institutional-grade quantitative research and AI-driven wealth strategies for the modern investor.
                     </p>
                 </div>
 

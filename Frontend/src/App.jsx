@@ -22,6 +22,7 @@ import { AuthProvider } from "./context/AuthContext";
 import { SocketProvider } from "./context/SocketContext";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import { Toaster } from "react-hot-toast";
+import ChatWidget from "./components/ChatWidget";
 
 const pageVariants = {
     initial: { opacity: 0, y: 12 },
@@ -90,6 +91,7 @@ export default function App() {
                     />
                     <Navbar />
                     <AuthModal />
+                    <ChatWidget />
                     <div className='px-4 min-h-screen relative overflow-visible'>
                         <AnimatedRoutes />
                     </div>

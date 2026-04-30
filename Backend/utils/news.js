@@ -112,26 +112,30 @@ export const fetchStockNews = async (symbol, name, sector) => {
     // 4. Filter & Deduplicate
     const seenTitles = new Set();
     const final = unified.filter(art => {
-        if (!art.title || art.title.length < 10) return false;
+        if (!art.title || art.title.length < 5) return false;
         
         const lowTitle = art.title.toLowerCase();
-        // Simple deduplication based on title similarity (first 30 chars)
         const partialTitle = lowTitle.substring(0, 40);
         if (seenTitles.has(partialTitle)) return false;
         seenTitles.add(partialTitle);
 
-        // Noise gate for MRF/Recycling
-        if ((cleanSymbol === 'MRF') && (lowTitle.includes('waste') || lowTitle.includes('recycl'))) return false;
+        if (art.isMarketNews) return true;
 
-        // Ensure relevance: Must mention part of the name, ticker, or synonym OR be general market news
         const n = name.toLowerCase();
         const s = cleanSymbol.toLowerCase();
         const e = extraTerm.toLowerCase();
         
-        const isStockRelevant = lowTitle.includes(n) || lowTitle.includes(s) || (e && lowTitle.includes(e)) || (sector && lowTitle.includes(sector.toLowerCase()));
+        // Broaden relevance to catch more headlines
+        const isStockRelevant = 
+            lowTitle.includes(n) || 
+            lowTitle.includes(s) || 
+            (e && lowTitle.includes(e)) || 
+            (sector && lowTitle.includes(sector.toLowerCase())) ||
+            lowTitle.split(' ').some(word => word.toUpperCase() === cleanSymbol.toUpperCase());
         
-        return art.isMarketNews || isStockRelevant;
+        return isStockRelevant;
     });
 
+    console.log(`[News] Found ${final.length} relevant articles for ${symbol} (out of ${unified.length} total)`);
     return final.sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt)).slice(0, 15);
 };

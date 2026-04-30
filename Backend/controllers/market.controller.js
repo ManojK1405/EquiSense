@@ -23,7 +23,13 @@ export const searchSymbols = async (req, res) => {
     try {
         const results = await yahooFinance.search(q);
         const filtered = results.quotes
-            .filter(item => item.quoteType === 'EQUITY' || item.quoteType === 'INDEX')
+            .filter(item => 
+                (item.quoteType === 'EQUITY' || item.quoteType === 'INDEX') && 
+                (item.symbol.endsWith('.NS') || 
+                 item.symbol.endsWith('.BO') || 
+                 item.symbol.startsWith('^NSE') || 
+                 item.symbol.startsWith('^BSESN'))
+            )
             .map(item => ({
                 symbol: item.symbol,
                 name: item.shortname || item.longname || item.symbol,

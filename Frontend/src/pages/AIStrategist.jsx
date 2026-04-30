@@ -7,6 +7,9 @@ import { useAuth } from '../context/AuthContext';
 import { toast } from 'react-hot-toast';
 import PageHero from '../components/PageHero';
 
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+
 const formatINR = (val) => {
     if (val >= 10000000) return `₹${(val / 10000000).toFixed(2)} Cr`;
     if (val >= 100000) return `₹${(val / 100000).toFixed(2)} L`;
@@ -166,13 +169,13 @@ const AIStrategist = () => {
                         <motion.div 
                             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                             onClick={() => setShowConfirmModal(false)}
-                            className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
+                            className="absolute inset-0 bg-slate-900/60 backdrop-blur-xl"
                         />
                         <motion.div 
                             initial={{ opacity: 0, scale: 0.9, y: 20 }}
                             animate={{ opacity: 1, scale: 1, y: 0 }}
                             exit={{ opacity: 0, scale: 0.9, y: 20 }}
-                            className="relative w-full max-w-2xl bg-white rounded-[40px] shadow-2xl overflow-hidden border border-slate-200"
+                            className="relative w-full max-w-2xl bg-white rounded-[40px] shadow-[0_40px_100px_-20px_rgba(0,0,0,0.25)] ring-1 ring-slate-900/5 overflow-hidden"
                         >
                             <div className="p-10 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
                                 <div className="flex items-center gap-4">
@@ -247,135 +250,91 @@ const AIStrategist = () => {
             <div className="max-w-7xl mx-auto px-6 pt-8 pb-24 relative z-10">
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-16 items-start">
 
-                    {/* ── Left Column: Mandate ── */}
-                    <div className="lg:col-span-5 space-y-5">
-                        <motion.div initial={{ opacity: 0, x: -30 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.7 }}>
+                    {/* ── Left Column: Mandate (Sticky) ── */}
+                    <div className="lg:col-span-5 sticky top-32 space-y-8">
+                        <motion.div initial={{ opacity: 0, x: -30 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.7 }} className="space-y-6">
 
                             {/* Tab switcher */}
-                            <div className="flex bg-slate-100 p-1 rounded-2xl border border-slate-200/60 mb-5">
+                            <div className="flex bg-slate-100 p-1.5 rounded-2xl border border-slate-200/60 shadow-inner">
                                 <button
                                     onClick={() => setActiveTab('generate')}
-                                    className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'generate' ? 'bg-white text-slate-900 shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
+                                    className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'generate' ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-900/5' : 'text-slate-400 hover:text-slate-600'}`}
                                 >
                                     <Sparkles className="w-3.5 h-3.5" />
-                                    Generate New
+                                    Mandate
                                 </button>
                                 <button
                                     onClick={() => setActiveTab('saved')}
-                                    className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'saved' ? 'bg-white text-slate-900 shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
+                                    className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'saved' ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-900/5' : 'text-slate-400 hover:text-slate-600'}`}
                                 >
                                     <History className="w-3.5 h-3.5" />
-                                    Saved Vault
+                                    Vault
                                 </button>
                             </div>
 
                             {activeTab === 'generate' ? (
-                                <>
+                                <div className="space-y-6">
                                     {/* Mandate Form Card */}
-                                    <div className="bg-white rounded-[32px] border border-slate-100 shadow-xl overflow-hidden">
-                                        <div className="h-1 bg-gradient-to-r from-fuchsia-500 via-violet-500 to-purple-600" />
-                                        <div className="p-8 space-y-6">
+                                    <div className="bg-white rounded-[40px] border border-slate-100 shadow-[0_30px_60px_-15px_rgba(0,0,0,0.05)] overflow-hidden">
+                                        <div className="h-1.5 bg-gradient-to-r from-fuchsia-600 via-rose-500 to-orange-500" />
+                                        <div className="p-10 space-y-8">
 
                                             {/* Capital */}
-                                            <div className="space-y-2">
-                                                <label className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                                                    <span className="w-5 h-5 rounded-lg bg-fuchsia-50 text-fuchsia-600 flex items-center justify-center text-[9px] font-black">1</span>
-                                                    Capital Commitment
-                                                </label>
-                                                <div className="relative">
-                                                    <span className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 font-black text-lg">₹</span>
+                                            <div className="space-y-3">
+                                                <div className="flex justify-between items-end">
+                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Investment Commitment</label>
+                                                    <span className="text-[10px] font-black text-fuchsia-600 bg-fuchsia-50 px-2 py-0.5 rounded-md uppercase">Step 01</span>
+                                                </div>
+                                                <div className="relative group">
+                                                    <span className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-400 font-black text-xl group-focus-within:text-fuchsia-600 transition-colors">₹</span>
                                                     <input
                                                         type="number"
-                                                        placeholder="e.g. 500000"
-                                                        className="w-full pl-10 pr-16 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-black text-xl text-slate-900 focus:outline-none focus:border-fuchsia-400 focus:ring-4 focus:ring-fuchsia-500/8 transition-all"
+                                                        placeholder="5,00,000"
+                                                        className="w-full pl-12 pr-6 py-5 bg-slate-50 border border-slate-200 rounded-[24px] font-black text-2xl text-slate-900 focus:outline-none focus:border-fuchsia-400 focus:ring-8 focus:ring-fuchsia-500/5 transition-all"
                                                         value={mandate.amount}
                                                         onChange={(e) => setMandate({ ...mandate, amount: e.target.value })}
                                                     />
-                                                    <span className="absolute right-5 top-1/2 -translate-y-1/2 text-[9px] font-black text-slate-300 uppercase tracking-widest">INR</span>
                                                 </div>
                                             </div>
 
-                                            {/* Risk */}
-                                            <div className="space-y-2">
-                                                <label className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                                                    <span className="w-5 h-5 rounded-lg bg-fuchsia-50 text-fuchsia-600 flex items-center justify-center text-[9px] font-black">2</span>
-                                                    Risk Appetite
-                                                </label>
-                                                <div className="grid grid-cols-3 gap-2">
-                                                    <button
-                                                        onClick={() => setMandate({ ...mandate, riskLevel: 'conservative' })}
-                                                        className={`py-3 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all ${mandate.riskLevel === 'conservative' ? 'bg-emerald-600 text-white border-emerald-600 shadow-lg' : 'bg-white text-slate-400 border-slate-200 hover:border-fuchsia-200'}`}
-                                                    >
-                                                        Conservative
-                                                    </button>
-                                                    <button
-                                                        onClick={() => setMandate({ ...mandate, riskLevel: 'moderate' })}
-                                                        className={`py-3 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all ${mandate.riskLevel === 'moderate' ? 'bg-amber-500 text-white border-amber-500 shadow-lg' : 'bg-white text-slate-400 border-slate-200 hover:border-fuchsia-200'}`}
-                                                    >
-                                                        Moderate
-                                                    </button>
-                                                    <button
-                                                        onClick={() => setMandate({ ...mandate, riskLevel: 'aggressive' })}
-                                                        className={`py-3 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all ${mandate.riskLevel === 'aggressive' ? 'bg-rose-600 text-white border-rose-600 shadow-lg' : 'bg-white text-slate-400 border-slate-200 hover:border-fuchsia-200'}`}
-                                                    >
-                                                        Aggressive
-                                                    </button>
+                                            {/* Risk & Horizon Grid */}
+                                            <div className="grid grid-cols-1 gap-8">
+                                                <div className="space-y-3">
+                                                    <div className="flex justify-between items-end">
+                                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Risk Appetite</label>
+                                                        <span className="text-[10px] font-black text-rose-600 bg-rose-50 px-2 py-0.5 rounded-md uppercase">Step 02</span>
+                                                    </div>
+                                                    <div className="flex gap-2 bg-slate-50 p-1.5 rounded-2xl border border-slate-100">
+                                                        {['conservative', 'moderate', 'aggressive'].map((r) => (
+                                                            <button
+                                                                key={r}
+                                                                onClick={() => setMandate({ ...mandate, riskLevel: r })}
+                                                                className={`flex-1 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${mandate.riskLevel === r ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600 hover:bg-white/50'}`}
+                                                            >
+                                                                {r}
+                                                            </button>
+                                                        ))}
+                                                    </div>
                                                 </div>
-                                            </div>
 
-                                            {/* Horizon */}
-                                            <div className="space-y-3">
-                                                <div className="flex items-center gap-2 justify-between">
-                                                    <label className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                                                        <span className="w-5 h-5 rounded-lg bg-fuchsia-50 text-fuchsia-600 flex items-center justify-center text-[9px] font-black">3</span>
-                                                        Time Horizon
-                                                    </label>
-                                                    <span className="px-3 py-1 bg-fuchsia-600 text-white text-xs font-black rounded-lg">{mandate.horizon}Y</span>
-                                                </div>
-                                                <input
-                                                    type="range" min="1" max="20" step="1"
-                                                    className="w-full h-1.5 bg-slate-100 rounded-full appearance-none cursor-pointer accent-fuchsia-600"
-                                                    value={mandate.horizon}
-                                                    onChange={(e) => setMandate({ ...mandate, horizon: e.target.value })}
-                                                />
-                                                <div className="flex justify-between text-[9px] font-black text-slate-300 uppercase tracking-widest">
-                                                    <span>1Y</span><span>5Y</span><span>10Y</span><span>15Y</span><span>20Y</span>
-                                                </div>
-                                            </div>
-
-                                            {/* Sectors */}
-                                            <div className="space-y-2">
-                                                <label className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                                                    <span className="w-5 h-5 rounded-lg bg-fuchsia-50 text-fuchsia-600 flex items-center justify-center text-[9px] font-black">4</span>
-                                                    Sector Bias
-                                                </label>
-                                                <div className="flex flex-wrap gap-2">
-                                                    {[
-                                                        { id: 'any',     label: 'Diversified' },
-                                                        { id: 'IT',      label: 'Tech & SaaS' },
-                                                        { id: 'Banking', label: 'Banking'     },
-                                                        { id: 'Auto',    label: 'Automotive'  },
-                                                        { id: 'Energy',  label: 'Energy'      },
-                                                        { id: 'Pharma',  label: 'Pharma'      },
-                                                    ].map((s) => (
-                                                        <button
-                                                            key={s.id}
-                                                            onClick={() => {
-                                                                if (s.id === 'any') {
-                                                                    setMandate({ ...mandate, sectors: ['any'] });
-                                                                } else {
-                                                                    const current = mandate.sectors.filter(x => x !== 'any');
-                                                                    const next = current.includes(s.id) ? current.filter(x => x !== s.id) : [...current, s.id];
-                                                                    setMandate({ ...mandate, sectors: next.length ? next : ['any'] });
-                                                                }
-                                                            }}
-                                                            className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all ${mandate.sectors.includes(s.id)
-                                                                ? 'bg-fuchsia-600 text-white border-fuchsia-600 shadow-md shadow-fuchsia-900/10'
-                                                                : 'bg-white text-slate-400 border-slate-200 hover:border-fuchsia-300 hover:text-fuchsia-600'}`}
-                                                        >
-                                                            {s.label}
-                                                        </button>
-                                                    ))}
+                                                <div className="space-y-4">
+                                                    <div className="flex items-center justify-between">
+                                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Time Horizon</label>
+                                                        <span className="px-3 py-1 bg-slate-900 text-white text-[10px] font-black rounded-lg">{mandate.horizon} Years</span>
+                                                    </div>
+                                                    <div className="px-2">
+                                                        <input
+                                                            type="range" min="1" max="20" step="1"
+                                                            className="w-full h-1.5 bg-slate-100 rounded-full appearance-none cursor-pointer accent-slate-900"
+                                                            value={mandate.horizon}
+                                                            onChange={(e) => setMandate({ ...mandate, horizon: e.target.value })}
+                                                        />
+                                                    </div>
+                                                    <div className="flex justify-between text-[8px] font-black text-slate-300 uppercase tracking-tighter">
+                                                        <span>1 Year</span>
+                                                        <span>10 Years</span>
+                                                        <span>20 Years</span>
+                                                    </div>
                                                 </div>
                                             </div>
 
@@ -383,91 +342,92 @@ const AIStrategist = () => {
                                             <button
                                                 onClick={generateFullPlan}
                                                 disabled={loading}
-                                                className="w-full py-4 bg-gradient-to-r from-fuchsia-600 to-violet-600 rounded-2xl text-white font-black text-[11px] uppercase tracking-[0.2em] shadow-xl shadow-fuchsia-900/20 hover:shadow-fuchsia-600/30 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3 disabled:opacity-40 disabled:cursor-not-allowed"
+                                                className="w-full py-5 bg-slate-900 rounded-[24px] text-white font-black text-[12px] uppercase tracking-[0.3em] shadow-2xl shadow-slate-900/20 hover:bg-slate-800 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-4 disabled:opacity-40"
                                             >
-                                                {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4 fill-current" />}
-                                                {loading ? 'Architecting Blueprint...' : 'Generate Investment Plan'}
+                                                {loading ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Zap className="w-5 h-5 fill-rose-500 text-rose-500" />}
+                                                {loading ? 'Processing Mandate...' : 'Architect Portfolio'}
                                             </button>
                                         </div>
                                     </div>
 
-                                    {/* Capability chips */}
-                                    <div className="grid grid-cols-2 gap-3">
-                                        {[
-                                            { icon: Brain,      label: 'AI Portfolio Design',  color: 'fuchsia' },
-                                            { icon: ShieldCheck,label: 'Risk-Adjusted Returns', color: 'violet'  },
-                                            { icon: BarChart2,  label: 'Backtest Simulation',   color: 'indigo'  },
-                                            { icon: Zap,        label: 'One-Click Execution',   color: 'rose'    },
-                                        ].map(({ icon: Icon, label, color }) => (
-                                            <div key={label} className="flex items-center gap-3 p-4 bg-white rounded-2xl border border-slate-100 shadow-sm">
-                                                <div className={`w-8 h-8 rounded-xl bg-${color}-50 text-${color}-600 flex items-center justify-center shrink-0`}>
-                                                    <Icon className="w-4 h-4" />
+                                    {/* Mandate Insights (New Section to balance height) */}
+                                    {strategy && (
+                                        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-slate-50 rounded-[40px] border border-slate-100 p-8 space-y-6">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center shadow-sm border border-slate-100">
+                                                    <ShieldCheck className="w-4 h-4 text-emerald-600" />
                                                 </div>
-                                                <span className="text-[11px] font-black text-slate-700 leading-tight">{label}</span>
+                                                <h4 className="text-[10px] font-black text-slate-900 uppercase tracking-widest">Mandate Compliance</h4>
                                             </div>
-                                        ))}
-                                    </div>
-                                </>
+                                            
+                                            <div className="space-y-4">
+                                                <div className="flex justify-between items-center py-3 border-b border-slate-200/50">
+                                                    <span className="text-[10px] font-bold text-slate-400 uppercase">Diversification</span>
+                                                    <span className="text-[10px] font-black text-slate-900">Optimal (3-5 Tickers)</span>
+                                                </div>
+                                                <div className="flex justify-between items-center py-3 border-b border-slate-200/50">
+                                                    <span className="text-[10px] font-bold text-slate-400 uppercase">Risk Alignment</span>
+                                                    <span className="text-[10px] font-black text-slate-900 capitalize">{mandate.riskLevel} Profile</span>
+                                                </div>
+                                                <div className="flex justify-between items-center py-3">
+                                                    <span className="text-[10px] font-bold text-slate-400 uppercase">Liquidity Profile</span>
+                                                    <span className="text-[10px] font-black text-emerald-600 uppercase">High (Blue Chip)</span>
+                                                </div>
+                                            </div>
+
+                                            <div className="p-5 bg-white rounded-3xl border border-slate-100">
+                                                <p className="text-[10px] text-slate-500 font-medium leading-relaxed italic">
+                                                    "The architect has optimized this portfolio for {mandate.riskLevel} risk, prioritizing capital preservation alongside the {strategy.projectedReturnRange} growth target."
+                                                </p>
+                                            </div>
+                                        </motion.div>
+                                    )}
+                                </div>
                             ) : (
-                                <div className="space-y-6">
+                                <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-2 custom-scrollbar">
                                     {loadingSaved ? (
-                                        <div className="py-20 flex flex-col items-center justify-center gap-4">
+                                        <div className="py-40 flex flex-col items-center justify-center gap-4">
                                             <RefreshCw className="w-10 h-10 text-slate-200 animate-spin" />
-                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Accessing Vault...</p>
                                         </div>
                                     ) : savedStrategies.length === 0 ? (
-                                        <div className="py-20 text-center bg-white rounded-[40px] border border-slate-100 shadow-sm">
-                                            <History className="w-12 h-12 text-slate-100 mx-auto mb-4" />
-                                            <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">No Saved Blueprints Found</p>
+                                        <div className="py-40 text-center bg-white rounded-[40px] border border-slate-100">
+                                            <History className="w-12 h-12 text-slate-100 mx-auto mb-6" />
+                                            <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">No saved blueprints</p>
                                         </div>
                                     ) : (
                                         savedStrategies.map((s, sidx) => (
                                             <motion.div 
                                                 initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
                                                 key={s.id || `saved-${sidx}`} 
-                                                className="bg-white p-8 rounded-[32px] border border-slate-100 shadow-sm hover:border-rose-200 hover:shadow-xl transition-all group relative overflow-hidden"
+                                                className="bg-white p-8 rounded-[32px] border border-slate-100 hover:border-fuchsia-200 transition-all cursor-pointer group relative shadow-sm hover:shadow-xl"
+                                                onClick={() => {
+                                                    setStrategy(s.data);
+                                                    setMandate({ ...mandate, amount: s.data.totalCapital?.toString() || mandate.amount });
+                                                    setActiveTab('generate');
+                                                }}
                                             >
-                                                <div className="absolute top-0 right-0 w-24 h-24 bg-slate-50 rounded-bl-[40px] -mr-12 -mt-12 group-hover:bg-rose-50 transition-colors" />
-                                                
-                                                <div className="flex justify-between items-start mb-6 relative z-10">
-                                                    <div className="max-w-[70%]">
-                                                        <h4 className="font-black text-slate-900 text-lg tracking-tight uppercase italic mb-1">{s.name}</h4>
-                                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{new Date(s.createdAt).toLocaleDateString()}</p>
+                                                <div className="flex justify-between items-start mb-4">
+                                                    <div>
+                                                        <h4 className="font-black text-slate-900 text-sm tracking-tight uppercase mb-1">{s.name}</h4>
+                                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{new Date(s.createdAt).toLocaleDateString()}</p>
                                                     </div>
                                                     <button 
-                                                        onClick={() => deleteStrategy(s.id)}
-                                                        className="p-2 text-slate-300 hover:text-rose-500 transition-colors"
+                                                        onClick={(e) => { e.stopPropagation(); deleteStrategy(s.id); }}
+                                                        className="p-2 rounded-xl text-slate-300 hover:text-rose-500 hover:bg-rose-50 transition-all"
                                                     >
-                                                        <Trash2 className="w-5 h-5" />
+                                                        <Trash2 className="w-4 h-4" />
                                                     </button>
                                                 </div>
-
-                                                <div className="flex gap-4 mb-6 relative z-10">
-                                                    <div className="px-4 py-3 bg-slate-50 rounded-2xl border border-slate-100">
-                                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Assets</p>
-                                                        <p className="font-black text-slate-900 text-sm">{s.data.allocation?.length || s.data.trades?.length || 0}</p>
+                                                <div className="flex gap-3">
+                                                    <div className="flex-1 px-4 py-3 bg-slate-50 rounded-2xl border border-slate-100">
+                                                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Commitment</p>
+                                                        <p className="font-black text-slate-900 text-[11px]">₹{Number(s.data.totalCapital || 0).toLocaleString()}</p>
                                                     </div>
-                                                    <div className="px-4 py-3 bg-slate-50 rounded-2xl border border-slate-100">
-                                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Commitment</p>
-                                                        <p className="font-black text-emerald-600 text-sm">₹{Number(s.data.totalCapital || 0).toLocaleString()}</p>
+                                                    <div className="flex-1 px-4 py-3 bg-fuchsia-50 rounded-2xl border border-fuchsia-100">
+                                                        <p className="text-[8px] font-black text-fuchsia-400 uppercase tracking-widest mb-1">Target</p>
+                                                        <p className="font-black text-fuchsia-600 text-[11px]">{s.data.projectedReturnRange}</p>
                                                     </div>
                                                 </div>
-
-                                                <button 
-                                                    onClick={() => {
-                                                        setStrategy(s.data);
-                                                        setMandate({
-                                                            ...mandate,
-                                                            amount: s.data.totalCapital?.toString() || mandate.amount
-                                                        });
-                                                        setActiveTab('generate');
-                                                        toast.success('Strategy Loaded into Terminal');
-                                                    }}
-                                                    className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-rose-600 transition-all flex items-center justify-center gap-3"
-                                                >
-                                                    Load into Terminal
-                                                    <ArrowRight className="w-4 h-4" />
-                                                </button>
                                             </motion.div>
                                         ))
                                     )}
@@ -476,271 +436,354 @@ const AIStrategist = () => {
                         </motion.div>
                     </div>
 
-                    {/* ── Right Column: Output Terminal ── */}
+                    {/* ── Right Column: Output Terminal (Modernized) ── */}
                     <div className="lg:col-span-7">
                         <FeatureLock featureName="AI Strategy Engine" description="Unlock institutional-grade investment blueprints and historical backtest simulations.">
                             <motion.div
-                                initial={{ opacity: 0, scale: 0.98, y: 20 }}
+                                initial={{ opacity: 0, scale: 0.99, y: 20 }}
                                 animate={{ opacity: 1, scale: 1, y: 0 }}
-                                className="bg-white rounded-[60px] border border-slate-200 shadow-[0_40px_100px_rgba(0,0,0,0.08)] flex flex-col overflow-hidden relative min-h-[500px]"
+                                className="bg-white rounded-[48px] flex flex-col overflow-hidden relative min-h-[850px] shadow-[0_50px_100px_-20px_rgba(0,0,0,0.1)] border border-slate-100"
                             >
-                                {/* Header */}
-                                <div className="p-8 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between backdrop-blur-xl relative z-10 shrink-0">
+                                {/* Terminal Header */}
+                                <div className="px-10 py-8 border-b border-slate-100 bg-white flex items-center justify-between shrink-0">
                                     <div className="flex items-center gap-4">
-                                        <div className="w-12 h-12 rounded-2xl bg-slate-900 flex items-center justify-center text-white shadow-xl shadow-slate-900/20">
+                                        <div className="w-12 h-12 rounded-[18px] bg-slate-900 flex items-center justify-center text-white shadow-xl shadow-slate-900/20">
                                             <Brain className="w-6 h-6" />
                                         </div>
                                         <div>
-                                            <h3 className="text-lg font-black text-slate-900 tracking-tight leading-none mb-1.5">Architect Output</h3>
+                                            <h3 className="text-lg font-black text-slate-900 tracking-tight leading-none mb-1.5 uppercase">Architect Workbench</h3>
                                             <div className="flex items-center gap-2">
-                                                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                                                <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Awaiting Execution</p>
+                                                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                                                <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest">Protocol v2.4 Active</p>
                                             </div>
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-2">
-                                        <button className="p-3 rounded-2xl bg-white border border-slate-100 text-slate-400 hover:text-rose-500 hover:border-rose-100 transition-all">
-                                            <Share2 className="w-5 h-5" />
+                                    <div className="flex items-center gap-3">
+                                        <button className="p-3 rounded-2xl bg-slate-50 border border-slate-100 text-slate-400 hover:text-slate-900 hover:bg-white hover:shadow-lg transition-all">
+                                            <Share2 className="w-4.5 h-4.5" />
                                         </button>
-                                        <button className="p-3 rounded-2xl bg-white border border-slate-100 text-slate-400 hover:text-rose-500 hover:border-rose-100 transition-all">
-                                            <Download className="w-5 h-5" />
+                                        <button className="p-3 rounded-2xl bg-slate-50 border border-slate-100 text-slate-400 hover:text-slate-900 hover:bg-white hover:shadow-lg transition-all">
+                                            <Download className="w-4.5 h-4.5" />
                                         </button>
                                     </div>
                                 </div>
 
-                                {/* Output */}
-                                <div className="flex-1 p-10 bg-[radial-gradient(#e2e8f0_1px,transparent_1px)] [background-size:24px_24px] flex flex-col justify-center">
+                                {/* Modernized Output Area */}
+                                <div className="flex-1 p-10">
                                     <AnimatePresence mode="wait">
                                         {loading ? (
                                             <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                                                className="flex flex-col items-center justify-center space-y-6 py-20"
+                                                className="h-full flex flex-col items-center justify-center space-y-8 py-60"
                                             >
                                                 <div className="relative">
-                                                    <div className="absolute inset-0 bg-rose-500 rounded-full blur-xl opacity-20 animate-pulse" />
-                                                    <div className="w-16 h-16 bg-white rounded-2xl shadow-xl border border-slate-100 flex items-center justify-center relative z-10">
-                                                        <RefreshCw className="w-8 h-8 text-rose-500 animate-spin" />
-                                                    </div>
+                                                    <div className="w-20 h-20 border-4 border-slate-100 rounded-full" />
+                                                    <div className="w-20 h-20 border-4 border-t-fuchsia-600 border-r-transparent border-b-transparent border-l-transparent rounded-full animate-spin absolute top-0 left-0" />
                                                 </div>
                                                 <div className="text-center">
-                                                    <p className="font-black text-slate-900 text-lg tracking-tight mb-1">Architecting Blueprint...</p>
-                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Analyzing Market Liquidity & Technicals</p>
+                                                    <p className="font-black text-slate-900 text-2xl tracking-tighter mb-2">Simulating Scenarios...</p>
+                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Optimizing Sharpe & Liquidity Clusters</p>
                                                 </div>
                                             </motion.div>
                                         ) : strategy ? (
-                                            <motion.div key="result" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-                                                className="bg-white border border-slate-200 rounded-[32px] overflow-hidden shadow-2xl shadow-slate-900/5 flex flex-col"
-                                            >
-                                                {/* Light header */}
-                                                <div className="p-10 bg-slate-50 text-slate-900 relative overflow-hidden shrink-0 border-b border-slate-100">
-                                                    <div className="absolute top-0 right-0 w-64 h-64 bg-rose-500/5 blur-[100px] rounded-full" />
-                                                    <div className="absolute bottom-0 left-0 w-48 h-48 bg-orange-500/5 blur-[80px] rounded-full" />
-
-                                                    <div className="relative z-10">
-                                                        <div className="flex justify-between items-start mb-8">
-                                                            <div className="max-w-[55%]">
-                                                                <div className="flex gap-3 mb-4">
-                                                                    <span className="px-3 py-1 bg-white border border-slate-200 rounded-lg text-[10px] font-black text-rose-600 uppercase tracking-widest shadow-sm">
-                                                                        {strategy.riskScore} Risk
-                                                                    </span>
-                                                                    <span className="px-3 py-1 bg-white border border-slate-200 rounded-lg text-[10px] font-black text-orange-600 uppercase tracking-widest shadow-sm">
-                                                                        {strategy.horizon}
-                                                                    </span>
-                                                                </div>
-                                                                <h4 className="font-black text-slate-900 text-3xl tracking-tight leading-tight uppercase italic underline decoration-rose-500 decoration-4 underline-offset-8 mb-4">{strategy.strategyTitle}</h4>
+                                            <motion.div key="result" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-10">
+                                                
+                                                {/* Header & Stats Card */}
+                                                <div className="p-12 bg-slate-900 rounded-[40px] relative overflow-hidden shadow-2xl">
+                                                    <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-gradient-to-br from-fuchsia-500/20 to-rose-500/20 blur-[120px] rounded-full -mr-32 -mt-32" />
+                                                    <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-8">
+                                                        <div className="flex-1">
+                                                            <div className="flex gap-2 mb-6">
+                                                                <span className="px-3 py-1 bg-white/10 backdrop-blur-md border border-white/10 rounded-full text-[9px] font-black text-rose-400 uppercase tracking-widest">{strategy.riskScore} Risk</span>
+                                                                <span className="px-3 py-1 bg-white/10 backdrop-blur-md border border-white/10 rounded-full text-[9px] font-black text-orange-400 uppercase tracking-widest">{strategy.horizon}</span>
                                                             </div>
-                                                            <div className="flex gap-4 text-right shrink-0">
-                                                                <div className="bg-white px-6 py-5 rounded-[24px] border border-slate-100 shadow-xl min-w-[140px] flex flex-col justify-center">
-                                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Target CAGR</p>
-                                                                    <p className="font-black text-emerald-600 text-2xl">{strategy.projectedReturnRange}</p>
-                                                                </div>
-                                                                {(() => {
-                                                                    if (!strategy?.projectedReturnRange) return null;
-                                                                    const matches = strategy.projectedReturnRange.match(/\d+(\.\d+)?/g);
-                                                                    if (!matches || matches.length === 0) return null;
-                                                                    const avgRate = (matches.reduce((a, b) => a + parseFloat(b), 0) / matches.length) / 100;
-                                                                    const fv = parseFloat(mandate.amount) * Math.pow(1 + avgRate, parseFloat(mandate.horizon));
-                                                                    return (
-                                                                        <div className="bg-white px-6 py-5 rounded-[24px] border border-slate-100 shadow-xl min-w-[140px] flex flex-col justify-center">
-                                                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Est. {mandate.horizon}Y Value</p>
-                                                                            <p className="font-black text-emerald-600 text-2xl">{formatINR(fv)}</p>
-                                                                        </div>
-                                                                    );
-                                                                })()}
-                                                            </div>
+                                                            <h4 className="text-4xl font-black text-white tracking-tighter mb-6 leading-[0.95]">{strategy.strategyTitle}</h4>
+                                                            <p className="text-slate-400 font-bold leading-relaxed text-sm max-w-xl">{strategy.summary}</p>
                                                         </div>
-                                                        <p className="text-slate-600 font-bold leading-relaxed text-sm max-w-2xl">{strategy.summary}</p>
+                                                        <div className="bg-white/5 backdrop-blur-2xl p-8 rounded-[32px] border border-white/10 text-center min-w-[180px] shadow-2xl">
+                                                            <p className="text-[9px] font-black text-white/40 uppercase tracking-widest mb-3">Projected Yield</p>
+                                                            <p className="text-4xl font-black text-emerald-400 tracking-tighter">{strategy.projectedReturnRange}</p>
+                                                            <p className="text-[8px] font-black text-white/20 uppercase tracking-[0.2em] mt-3">Est. Annualized</p>
+                                                        </div>
                                                     </div>
                                                 </div>
 
-                                                {/* Allocation */}
-                                                <div className="p-10 bg-white">
-                                                    <div className="flex items-center justify-between mb-6 border-b border-slate-100 pb-4">
-                                                        <h5 className="text-[11px] font-black text-slate-900 uppercase tracking-[0.2em]">Asset Allocation</h5>
-                                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">₹{Number(mandate.amount).toLocaleString()}</span>
-                                                    </div>
-
-                                                    <div className="space-y-4 mb-10">
-                                                        {strategy.allocation.map((asset, aidx) => (
-                                                            <div key={aidx} className="flex items-center justify-between p-5 rounded-2xl bg-slate-50 border border-slate-100 hover:border-rose-200 hover:bg-white transition-all group">
-                                                                <div className="flex items-center gap-5">
-                                                                    <div className="w-12 h-12 rounded-xl bg-white flex items-center justify-center font-black text-slate-900 shadow-sm border border-slate-100 group-hover:scale-110 transition-transform">
-                                                                        {asset.name[0]}
-                                                                    </div>
-                                                                    <div>
-                                                                        <p className="font-black text-slate-900 text-base tracking-tight mb-0.5">{asset.displayName}</p>
-                                                                        <div className="flex gap-2 items-center text-[10px] font-black uppercase tracking-widest">
-                                                                            <span className="text-rose-500">{asset.name}</span>
-                                                                            <span className="text-slate-300">•</span>
-                                                                            <span className={asset.risk === 'Low' ? 'text-emerald-500' : asset.risk === 'High' ? 'text-rose-500' : 'text-amber-500'}>
-                                                                                {asset.risk} Risk
-                                                                            </span>
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-                                                                <div className="text-right">
-                                                                    <p className="font-black text-slate-900 text-lg mb-0.5">₹{asset.amount.toLocaleString()}</p>
-                                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{asset.weight}% Weight</p>
-                                                                </div>
-                                                            </div>
+                                                {/* Navigation Tabs */}
+                                                <div className="space-y-8">
+                                                    <div className="flex gap-8 border-b border-slate-100">
+                                                        {['Allocation', 'Intelligence', 'Terminal'].map((t) => (
+                                                            <button 
+                                                                key={t}
+                                                                onClick={() => setActiveTab(t.toLowerCase())}
+                                                                className={`pb-4 text-[10px] font-black uppercase tracking-widest transition-all relative ${activeTab === t.toLowerCase() ? 'text-slate-900' : 'text-slate-300 hover:text-slate-500'}`}
+                                                            >
+                                                                {t}
+                                                                {activeTab === t.toLowerCase() && <motion.div layoutId="activeTabUnderline" className="absolute bottom-0 left-0 right-0 h-1 bg-slate-900 rounded-full" />}
+                                                            </button>
                                                         ))}
                                                     </div>
 
-                                                    {/* Market Outlook */}
-                                                    <div className="bg-slate-50 rounded-2xl p-6 border border-slate-100 mb-8">
-                                                        <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Market Outlook & Rationale</h5>
-                                                        <p className="text-sm text-slate-700 font-medium leading-relaxed">{strategy.marketOutlook}</p>
-                                                    </div>
-
-                                                    {/* Backtest result */}
-                                                    {backtestData && (
-                                                        <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="mb-8">
-                                                            <div className="p-6 bg-gradient-to-br from-rose-50 to-orange-50 rounded-2xl border border-rose-100">
-                                                                <div className="flex items-center gap-3 mb-6 pb-4 border-b border-rose-100/50">
-                                                                    <History className="w-5 h-5 text-rose-500" />
-                                                                    <h5 className="text-[11px] font-black text-rose-900 uppercase tracking-[0.2em]">Historical Backtest Simulation</h5>
+                                                    <AnimatePresence mode="wait">
+                                                        {activeTab === 'allocation' && (
+                                                            <motion.div key="alloc" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-8">
+                                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                                                    {strategy.allocation.map((asset, aidx) => (
+                                                                        <div key={aidx} className="p-8 bg-slate-50 border border-slate-100 rounded-[32px] hover:border-slate-300 transition-all group relative overflow-hidden">
+                                                                            <div className="flex justify-between items-start mb-6">
+                                                                                <div className="w-12 h-12 rounded-2xl bg-white text-slate-900 border border-slate-200 flex items-center justify-center font-black text-lg shadow-sm group-hover:bg-slate-900 group-hover:text-white transition-all">
+                                                                                    {asset.name[0]}
+                                                                                </div>
+                                                                                <div className="text-right">
+                                                                                    <p className="text-xl font-black text-slate-900">₹{asset.amount.toLocaleString()}</p>
+                                                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{asset.weight}% Allocation</p>
+                                                                                </div>
+                                                                            </div>
+                                                                            <h5 className="font-black text-slate-900 text-base mb-1.5 uppercase tracking-tight">{asset.displayName}</h5>
+                                                                            <div className="flex items-center gap-3 mb-6">
+                                                                                <span className="text-[9px] font-black text-rose-600 bg-rose-50 px-2 py-0.5 rounded-md uppercase tracking-widest">{asset.name}</span>
+                                                                                <div className="w-1 h-1 bg-slate-300 rounded-full" />
+                                                                                <span className="text-[9px] font-black text-amber-600 uppercase tracking-widest">{asset.risk} Risk Profile</span>
+                                                                            </div>
+                                                                            <p className="text-[11px] text-slate-500 font-bold leading-relaxed line-clamp-3">{asset.reason}</p>
+                                                                        </div>
+                                                                    ))}
                                                                 </div>
-                                                                <div className="grid grid-cols-2 gap-4 mb-6">
-                                                                    <div className="bg-white rounded-xl p-4 border border-rose-50 shadow-sm">
-                                                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Simulated T0 Value</p>
-                                                                        <p className="font-black text-slate-900 text-xl">₹{backtestData.historicalValue?.toLocaleString()}</p>
-                                                                    </div>
-                                                                    <div className="bg-white rounded-xl p-4 border border-rose-50 shadow-sm">
-                                                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Historical CAGR</p>
-                                                                        <p className="font-black text-emerald-600 text-xl">{backtestData.historicalCAGR}</p>
-                                                                    </div>
-                                                                </div>
-                                                                <div className="bg-white/50 rounded-xl p-4 border border-rose-50">
-                                                                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">AI Risk & Safety Analysis</p>
-                                                                    <p className="text-sm text-slate-700 font-medium leading-relaxed">{backtestData.analysis}</p>
-                                                                </div>
-                                                            </div>
-                                                        </motion.div>
-                                                    )}
-
-                                                    {/* Execution Terminal */}
-                                                    <div className="mb-10 p-8 rounded-[40px] bg-slate-900 text-white relative overflow-hidden shadow-2xl">
-                                                        <div className="absolute top-0 right-0 w-64 h-64 bg-rose-500/10 blur-[100px] rounded-full -mr-32 -mt-32" />
-                                                        
-                                                        <div className="relative z-10">
-                                                            <div className="flex items-center justify-between mb-8">
-                                                                <div className="flex items-center gap-4">
-                                                                    <div className="p-3 bg-white/10 rounded-2xl backdrop-blur-md">
-                                                                        <Zap className="w-6 h-6 text-orange-400 fill-current" />
-                                                                    </div>
-                                                                    <div>
-                                                                        <h6 className="text-lg font-black uppercase italic tracking-tight">Execution Terminal</h6>
-                                                                        <p className="text-[10px] font-black text-white/40 uppercase tracking-widest">Deploy Blueprint to Portfolio</p>
-                                                                    </div>
-                                                                </div>
-                                                                <div className="flex bg-white/5 p-1 rounded-2xl border border-white/10">
-                                                                    <button 
-                                                                        onClick={() => setExecutionMode('mock')}
-                                                                        className={`px-6 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${executionMode === 'mock' ? 'bg-white text-slate-900 shadow-xl' : 'text-white/40 hover:text-white'}`}
-                                                                    >
-                                                                        Mock Deck
+                                                                
+                                                                {/* Deployment Actions */}
+                                                                <div className="flex justify-end gap-4 pt-8 border-t border-slate-100">
+                                                                    <button onClick={runBacktest} className="px-8 py-4 bg-white border border-slate-200 rounded-2xl text-[10px] font-black uppercase tracking-[0.15em] hover:bg-slate-50 transition-all flex items-center gap-3 shadow-sm">
+                                                                        <History className="w-4 h-4" /> Simulation Replay
                                                                     </button>
-                                                                    <button 
-                                                                        onClick={() => setExecutionMode('live')}
-                                                                        className={`px-6 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${executionMode === 'live' ? 'bg-emerald-600 text-white shadow-xl' : 'text-white/40 hover:text-white'}`}
-                                                                    >
-                                                                        Live Sync
+                                                                    <button onClick={() => saveStrategyToDB(strategy)} className="px-8 py-4 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-[0.15em] hover:bg-slate-800 transition-all flex items-center gap-3 shadow-xl shadow-slate-900/10">
+                                                                        <Save className="w-4 h-4" /> Save Strategy
                                                                     </button>
                                                                 </div>
-                                                            </div>
 
-                                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                                                                <div className="p-6 bg-white/5 rounded-3xl border border-white/5">
-                                                                    <p className="text-[9px] font-black text-white/40 uppercase tracking-widest mb-2">Requirement</p>
-                                                                    <p className="text-2xl font-black">₹{Number(mandate.amount).toLocaleString()}</p>
+                                                                {backtestData && (
+                                                                    <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} className="p-10 bg-emerald-50 border border-emerald-100 rounded-[40px] relative overflow-hidden">
+                                                                        <div className="absolute top-0 right-0 p-8 text-emerald-200/50">
+                                                                            <BarChart2 className="w-32 h-32" />
+                                                                        </div>
+                                                                        <div className="relative z-10">
+                                                                            <div className="flex items-center gap-3 mb-8">
+                                                                                <div className="w-10 h-10 rounded-xl bg-emerald-600 flex items-center justify-center text-white shadow-lg">
+                                                                                    <History className="w-5 h-5" />
+                                                                                </div>
+                                                                                <div>
+                                                                                    <h5 className="text-[10px] font-black text-emerald-900 uppercase tracking-widest">Historical Performance Replay</h5>
+                                                                                    <p className="text-[8px] font-black text-emerald-600/60 uppercase">Horizon: {mandate.horizon}Y Backwards</p>
+                                                                                </div>
+                                                                            </div>
+                                                                            <div className="grid grid-cols-2 gap-6 mb-8">
+                                                                                <div className="bg-white p-6 rounded-3xl border border-emerald-100 shadow-sm">
+                                                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Simulated CAGR</p>
+                                                                                    <p className="text-3xl font-black text-emerald-600">{backtestData.historicalCAGR}</p>
+                                                                                </div>
+                                                                                <div className="bg-white p-6 rounded-3xl border border-emerald-100 shadow-sm">
+                                                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Portfolio Valuation</p>
+                                                                                    <p className="text-3xl font-black text-slate-900">₹{backtestData.historicalValue?.toLocaleString()}</p>
+                                                                                </div>
+                                                                            </div>
+                                                                            <div className="p-6 bg-emerald-600/5 rounded-3xl border border-emerald-600/10">
+                                                                                <p className="text-[12px] text-emerald-900 font-bold leading-relaxed italic">"{backtestData.analysis}"</p>
+                                                                            </div>
+                                                                        </div>
+                                                                    </motion.div>
+                                                                )}
+                                                            </motion.div>
+                                                        )}
+
+                                                        {activeTab === 'intelligence' && (
+                                                            <motion.div key="intel" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-8">
+                                                                <div className="grid grid-cols-1 gap-8">
+                                                                    <div className="bg-slate-50 p-12 rounded-[40px] border border-slate-100 relative group overflow-hidden">
+                                                                        <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity">
+                                                                            <Brain className="w-40 h-40" />
+                                                                        </div>
+                                                                        <h5 className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-6 flex items-center gap-3">
+                                                                            <div className="w-1.5 h-1.5 rounded-full bg-fuchsia-500" />
+                                                                            Strategic Market Outlook
+                                                                        </h5>
+                                                                        <p className="text-base text-slate-700 font-bold leading-loose relative z-10">{strategy.marketOutlook}</p>
+                                                                    </div>
+                                                                    <div className="bg-white p-12 rounded-[40px] border border-slate-100 shadow-sm relative group overflow-hidden">
+                                                                        <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity">
+                                                                            <Zap className="w-40 h-40" />
+                                                                        </div>
+                                                                        <h5 className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-6 flex items-center gap-3">
+                                                                            <div className="w-1.5 h-1.5 rounded-full bg-orange-500" />
+                                                                            Technical Execution Protocol
+                                                                        </h5>
+                                                                        <p className="text-base text-slate-700 font-bold leading-loose relative z-10">{strategy.executionGuidance}</p>
+                                                                    </div>
                                                                 </div>
-                                                                <div className="p-6 bg-white/5 rounded-3xl border border-white/5">
-                                                                    <p className="text-[9px] font-black text-white/40 uppercase tracking-widest mb-2">Availability ({executionMode.toUpperCase()})</p>
-                                                                    <p className={`text-2xl font-black ${executionMode === 'mock' ? (user?.mockBalance >= Number(mandate.amount) ? 'text-emerald-400' : 'text-rose-400') : (user?.brokerAccess ? 'text-emerald-400' : 'text-rose-400')}`}>
-                                                                        {executionMode === 'mock' ? `₹${user?.mockBalance?.toLocaleString() || '0'}` : (user?.brokerAccess ? 'Broker Linked' : 'No Connection')}
-                                                                    </p>
+                                                            </motion.div>
+                                                        )}
+
+                                                        {activeTab === 'terminal' && (
+                                                            <motion.div key="terminal" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
+                                                                <div className="p-12 rounded-[48px] bg-slate-900 text-white relative overflow-hidden shadow-2xl border border-white/5">
+                                                                    <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-gradient-to-br from-rose-500/20 via-orange-500/10 to-transparent blur-[120px] rounded-full -mr-48 -mt-48" />
+                                                                    
+                                                                    <div className="relative z-10">
+                                                                        <div className="flex items-center justify-between mb-12">
+                                                                            <div className="flex items-center gap-5">
+                                                                                <div className="w-14 h-14 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl flex items-center justify-center shadow-2xl">
+                                                                                    <Zap className="w-8 h-8 text-orange-400 fill-current" />
+                                                                                </div>
+                                                                                <div>
+                                                                                    <h6 className="text-2xl font-black uppercase tracking-tight italic">Deployment Engine</h6>
+                                                                                    <p className="text-[10px] font-black text-white/30 uppercase tracking-[0.2em]">Ready for multi-order transmission</p>
+                                                                                </div>
+                                                                            </div>
+                                                                            <div className="flex bg-white/5 p-1.5 rounded-[22px] border border-white/10 backdrop-blur-md">
+                                                                                <button 
+                                                                                    onClick={() => setExecutionMode('mock')}
+                                                                                    className={`px-8 py-3 rounded-[18px] text-[10px] font-black uppercase tracking-widest transition-all ${executionMode === 'mock' ? 'bg-white text-slate-900 shadow-2xl' : 'text-white/40 hover:text-white'}`}
+                                                                                >
+                                                                                    Mock
+                                                                                </button>
+                                                                                <button 
+                                                                                    onClick={() => setExecutionMode('live')}
+                                                                                    className={`px-8 py-3 rounded-[18px] text-[10px] font-black uppercase tracking-widest transition-all ${executionMode === 'live' ? 'bg-emerald-600 text-white shadow-2xl' : 'text-white/40 hover:text-white'}`}
+                                                                                >
+                                                                                    Live
+                                                                                </button>
+                                                                            </div>
+                                                                        </div>
+
+                                                                        <div className="grid grid-cols-2 gap-8 mb-12">
+                                                                            <div className="p-8 bg-white/5 backdrop-blur-sm rounded-[32px] border border-white/10 group hover:bg-white/10 transition-all">
+                                                                                <p className="text-[10px] font-black text-white/30 uppercase tracking-widest mb-3">Net Order Volume</p>
+                                                                                <p className="text-4xl font-black tracking-tighter">₹{Number(mandate.amount).toLocaleString()}</p>
+                                                                            </div>
+                                                                            <div className="p-8 bg-white/5 backdrop-blur-sm rounded-[32px] border border-white/10 group hover:bg-white/10 transition-all">
+                                                                                <p className="text-[10px] font-black text-white/30 uppercase tracking-widest mb-3">Transmission Channel</p>
+                                                                                <p className={`text-2xl font-black tracking-tight ${executionMode === 'mock' ? 'text-emerald-400' : (user?.brokerAccess ? 'text-emerald-400' : 'text-rose-400')}`}>
+                                                                                    {executionMode === 'mock' ? 'Paper Trading Secure' : (user?.brokerAccess ? 'Institutional API linked' : 'Auth Required')}
+                                                                                </p>
+                                                                            </div>
+                                                                        </div>
+
+                                                                        <button 
+                                                                            onClick={handleDeployRequest}
+                                                                            disabled={executing || (executionMode === 'live' && !user?.brokerAccess)}
+                                                                            className={`w-full py-7 rounded-[28px] font-black text-[13px] uppercase tracking-[0.5em] transition-all flex items-center justify-center gap-5 shadow-2xl active:scale-[0.98] ${executing ? 'bg-slate-800 text-white/30 cursor-not-allowed' : 'bg-gradient-to-r from-orange-600 via-rose-600 to-fuchsia-600 text-white hover:shadow-orange-600/20 hover:scale-[1.01]'}`}
+                                                                        >
+                                                                            {executing ? <RefreshCw className="w-6 h-6 animate-spin" /> : <PlayCircle className="w-7 h-7" />}
+                                                                            {executing ? 'Executing Order Batch...' : `Transmit ${executionMode} Strategy`}
+                                                                        </button>
+                                                                    </div>
                                                                 </div>
-                                                            </div>
-
-                                                            {executionMode === 'live' && !user?.brokerAccess && (
-                                                                <div className="flex items-center gap-3 p-4 bg-rose-500/10 border border-rose-500/20 rounded-2xl mb-8">
-                                                                    <ShieldAlert className="w-5 h-5 text-rose-500" />
-                                                                    <p className="text-[10px] font-black text-rose-200 uppercase tracking-widest leading-relaxed">
-                                                                        Broker authentication required. Please visit the <span className="text-rose-500 underline">Settings</span> page to establish a secure handshake.
-                                                                    </p>
-                                                                </div>
-                                                            )}
-
-                                                            <button 
-                                                                onClick={handleDeployRequest}
-                                                                disabled={executing || (executionMode === 'live' && !user?.brokerAccess)}
-                                                                className={`w-full py-6 rounded-[24px] font-black text-xs uppercase tracking-[0.3em] transition-all flex items-center justify-center gap-4 shadow-2xl active:scale-95 ${executing ? 'bg-slate-800 text-white/50 cursor-not-allowed' : 'bg-gradient-to-r from-orange-600 to-rose-600 text-white hover:shadow-orange-600/20'}`}
-                                                            >
-                                                                {executing ? <RefreshCw className="w-5 h-5 animate-spin" /> : <PlayCircle className="w-6 h-6" />}
-                                                                {executing ? 'Transmitting...' : `Deploy strategy in ${executionMode} Mode`}
-                                                            </button>
-                                                        </div>
-                                                    </div>
-
-                                                    {/* Actions */}
-                                                    <div className="flex justify-end gap-4 border-t border-slate-100 pt-8">
-                                                        <button
-                                                            onClick={runBacktest}
-                                                            disabled={backtestLoading}
-                                                            className="px-8 py-4 bg-white text-rose-500 border border-rose-100 rounded-2xl text-[11px] font-black uppercase tracking-[0.2em] hover:bg-rose-50 hover:border-rose-200 transition-all flex items-center gap-3 disabled:opacity-50"
-                                                        >
-                                                            {backtestLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <History className="w-4 h-4" />}
-                                                            {backtestLoading ? 'Simulating...' : 'Quick Backtest'}
-                                                        </button>
-                                                        <button
-                                                            onClick={() => saveStrategyToDB(strategy)}
-                                                            className="px-8 py-4 bg-white text-slate-900 border border-slate-200 rounded-2xl text-[11px] font-black uppercase tracking-[0.2em] hover:bg-slate-50 transition-all flex items-center gap-3"
-                                                        >
-                                                            <Save className="w-4 h-4" />
-                                                            Save to Vault
-                                                        </button>
-                                                    </div>
+                                                            </motion.div>
+                                                        )}
+                                                    </AnimatePresence>
                                                 </div>
                                             </motion.div>
                                         ) : (
                                             <motion.div key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-                                                className="h-full flex flex-col items-center justify-center text-center px-10"
+                                                className="h-full flex flex-col items-center justify-center text-center px-12 py-60"
                                             >
-                                                <div className="w-24 h-24 rounded-full bg-rose-50 flex items-center justify-center mb-8 border border-rose-100">
-                                                    <Layers className="w-10 h-10 text-rose-300" />
+                                                <div className="w-28 h-28 rounded-full bg-slate-50 flex items-center justify-center mb-10 border border-slate-100 group">
+                                                    <Layers className="w-12 h-12 text-slate-200 group-hover:text-fuchsia-400 transition-colors" />
                                                 </div>
-                                                <h3 className="font-black text-slate-900 text-2xl tracking-tight mb-4">Awaiting Mandate</h3>
-                                                <p className="text-slate-500 font-medium leading-relaxed max-w-sm">
-                                                    Configure your investment parameters on the left and click 'Generate Plan' to architect a custom quantitative portfolio.
+                                                <h3 className="font-black text-slate-900 text-3xl tracking-tighter mb-4 uppercase">Waiting for Mandate</h3>
+                                                <p className="text-slate-500 font-bold leading-relaxed max-w-sm text-sm">
+                                                    Define your investment parameters on the left to architect a quantitative blueprint.
                                                 </p>
                                             </motion.div>
                                         )}
                                     </AnimatePresence>
                                 </div>
+                                {strategy && <StrategistChat strategy={strategy} />}
                             </motion.div>
                         </FeatureLock>
                     </div>
 
                 </div>
+            </div>
+
+        </div>
+    );
+};
+
+const StrategistChat = ({ strategy }) => {
+    const [messages, setMessages] = useState([
+        { role: 'assistant', content: `Hello! I am your AI Investment Architect. I've built this **${strategy.strategyTitle}** blueprint for you. How can I help you refine or understand it?` }
+    ]);
+    const [input, setInput] = useState('');
+    const [loading, setLoading] = useState(false);
+
+    const handleSend = async () => {
+        if (!input.trim() || loading) return;
+        const newMsg = { role: 'user', content: input };
+        setMessages(prev => [...prev, newMsg]);
+        setInput('');
+        setLoading(true);
+
+        try {
+            const res = await api.post('/strategy/chat', { 
+                messages: [...messages, newMsg],
+                context: `The user is discussing this specific strategy: ${JSON.stringify(strategy)}`
+            });
+            setMessages(prev => [...prev, res.data]);
+        } catch (e) {
+            toast.error('Architect Connection Lost');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <div className="border-t border-slate-100 bg-slate-50/50 p-8">
+            <div className="flex items-center gap-3 mb-6">
+                <div className="w-8 h-8 rounded-lg bg-slate-900 flex items-center justify-center text-white">
+                    <Brain className="w-4 h-4" />
+                </div>
+                <h6 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Discuss with Architect</h6>
+            </div>
+
+            <div className="space-y-6 mb-8 max-h-[400px] overflow-y-auto px-2">
+                {messages.map((m, idx) => (
+                    <div key={idx} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                        <div className={`max-w-[85%] p-5 rounded-3xl text-sm font-medium leading-relaxed ${
+                            m.role === 'user' 
+                            ? 'bg-slate-900 text-white rounded-tr-none' 
+                            : 'bg-white border border-slate-200 text-slate-700 rounded-tl-none shadow-sm'
+                        }`}>
+                            <div className="markdown-content">
+                                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                    {m.content}
+                                </ReactMarkdown>
+                            </div>
+                        </div>
+                    </div>
+                ))}
+                {loading && (
+                    <div className="flex justify-start">
+                        <div className="bg-white border border-slate-200 p-5 rounded-3xl rounded-tl-none shadow-sm flex gap-2">
+                            <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" />
+                            <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce [animation-delay:0.2s]" />
+                            <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce [animation-delay:0.4s]" />
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            <div className="relative">
+                <input 
+                    className="w-full bg-white border border-slate-200 rounded-2xl py-4 pl-6 pr-16 text-sm font-medium focus:outline-none focus:border-rose-400 focus:ring-4 focus:ring-rose-500/5 transition-all shadow-sm"
+                    placeholder="Ask about allocation, risks, or swap stocks..."
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                />
+                <button 
+                    onClick={handleSend}
+                    disabled={loading}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 bg-slate-900 text-white rounded-xl flex items-center justify-center hover:bg-rose-600 transition-all disabled:opacity-50"
+                >
+                    <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                </button>
             </div>
         </div>
     );

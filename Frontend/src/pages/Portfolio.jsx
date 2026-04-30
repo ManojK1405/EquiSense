@@ -23,6 +23,7 @@ const Portfolio = () => {
 
     // Helper to get initial state from cache
     const getCached = (key, fallback) => {
+        if (!user) return fallback;
         try {
             const cached = localStorage.getItem(CACHE_KEY);
             if (cached) {
@@ -99,22 +100,35 @@ const Portfolio = () => {
             setMarketOpen(marketStatusRes.data.isOpen);
             setDailyReports(reportsRes.data || []);
 
-            // PERSIST TO CACHE
-            localStorage.setItem(CACHE_KEY, JSON.stringify({
-                watchlist: watchlistRes.data,
-                portfolio: portfolioRes.data.items || [],
-                mockBalance: portfolioRes.data.mockBalance || 0,
-                settlementBalance: portfolioRes.data.settlementBalance || 0,
-                autoPilot: isPilotActive,
-                tradeQueue: queueRes.data,
-                tradeLogs: logsRes.data,
-                brokerOrders: ordersRes.data || [],
-                marketOpen: marketStatusRes.data.isOpen,
-                dailyReports: reportsRes.data || []
-            }));
+            // PERSIST TO CACHE ONLY IF LOGGED IN
+            if (user) {
+                localStorage.setItem(CACHE_KEY, JSON.stringify({
+                    watchlist: watchlistRes.data,
+                    portfolio: portfolioRes.data.items || [],
+                    mockBalance: portfolioRes.data.mockBalance || 0,
+                    settlementBalance: portfolioRes.data.settlementBalance || 0,
+                    autoPilot: isPilotActive,
+                    tradeQueue: queueRes.data,
+                    tradeLogs: logsRes.data,
+                    brokerOrders: ordersRes.data || [],
+                    marketOpen: marketStatusRes.data.isOpen,
+                    dailyReports: reportsRes.data || []
+                }));
+            }
 
         } catch (error) {
             console.error('Error fetching data:', error);
+            if (!user) {
+                // Ensure empty state if fetch fails and user is not logged in
+                setWatchlist([]);
+                setPortfolio([]);
+                setMockBalance(0);
+                setSettlementBalance(0);
+                setAutoPilot(false);
+                setTradeQueue([]);
+                setTradeLogs([]);
+                setBrokerOrders([]);
+            }
         } finally {
             setLoading(false);
         }
@@ -122,7 +136,7 @@ const Portfolio = () => {
 
     useEffect(() => {
         fetchData();
-    }, [mode]);
+    }, [mode, user]);
 
     useEffect(() => {
         if (user?.brokerType) {
@@ -507,12 +521,21 @@ const Portfolio = () => {
                     {/* Centre: Mode + Broker */}
                     <div className="flex items-center gap-2">
                         <div className="flex bg-slate-100 p-0.5 rounded-xl border border-slate-200/80">
-                            <button onClick={() => { if (mode === 'live') setShowModeConfirm(true); }}
+                            <button onClick={async () => { 
+                                if (mode === 'live') {
+                                    setMode('mock');
+                                    localStorage.setItem('tradingMode', 'mock');
+                                    await api.post('/portfolio/mode', { mode: 'mock' }).catch(() => {});
+                                    fetchData('mock');
+                                }
+                            }}
                                 className={`px-4 py-1.5 rounded-[10px] font-black text-[9px] uppercase tracking-widest transition-all ${mode === 'mock' ? 'bg-white text-orange-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>
                                 Mock
                             </button>
-                            <button disabled={!user?.brokerApiKey} onClick={() => { if (mode === 'mock') setShowModeConfirm(true); }}
-                                className={`px-4 py-1.5 rounded-[10px] font-black text-[9px] uppercase tracking-widest transition-all ${mode === 'live' ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:text-slate-600'} ${!user?.brokerApiKey ? 'opacity-40 cursor-not-allowed' : ''}`}>
+                            <button 
+                                disabled={!user?.hasBrokerAccess || (user?.brokerAccessExpiry && new Date(user.brokerAccessExpiry) <= new Date(Date.now() - 30*60000))} 
+                                onClick={() => { if (mode === 'mock') setShowModeConfirm(true); }}
+                                className={`px-4 py-1.5 rounded-[10px] font-black text-[9px] uppercase tracking-widest transition-all ${mode === 'live' ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:text-slate-600'} ${(!user?.hasBrokerAccess || (user?.brokerAccessExpiry && new Date(user.brokerAccessExpiry) <= new Date(Date.now() - 30*60000))) ? 'opacity-40 cursor-not-allowed' : ''}`}>
                                 Live
                             </button>
                         </div>
@@ -534,17 +557,17 @@ const Portfolio = () => {
                         </div>
                         <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-full">
                             <Wallet className="w-3.5 h-3.5 text-orange-500" />
-                            <span className="text-sm font-black text-slate-900">₹{mockBalance.toLocaleString()}</span>
-                            {mode === 'mock' && (
+                            <span className="text-sm font-black text-slate-900">₹{user ? mockBalance.toLocaleString() : '---'}</span>
+                            {mode === 'mock' && user && (
                                 <button onClick={() => setShowTopUpModal(true)} className="w-4 h-4 bg-orange-500 hover:bg-orange-600 rounded-full flex items-center justify-center text-white transition-all active:scale-90">
                                     <Plus className="w-2.5 h-2.5" />
                                 </button>
                             )}
                         </div>
-                        <button onClick={toggleAI}
-                            className={`flex items-center gap-2 px-4 py-2 rounded-xl font-black text-[9px] uppercase tracking-widest transition-all shadow active:scale-95 ${autoPilot ? 'bg-gradient-to-r from-rose-500 to-orange-500 text-white shadow-orange-500/20' : 'bg-slate-900 text-white hover:bg-slate-700'}`}>
-                            <Zap className={`w-3 h-3 fill-current ${autoPilot ? 'animate-pulse' : ''}`} />
-                            {autoPilot ? 'AI Active' : 'EquiTrade'}
+                        <button onClick={user ? toggleAI : undefined}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-xl font-black text-[9px] uppercase tracking-widest transition-all shadow active:scale-95 ${autoPilot && user ? 'bg-gradient-to-r from-rose-500 to-orange-500 text-white shadow-orange-500/20' : 'bg-slate-900 text-white hover:bg-slate-700'} ${!user && 'opacity-50 cursor-not-allowed'}`}>
+                            <Zap className={`w-3 h-3 fill-current ${autoPilot && user ? 'animate-pulse' : ''}`} />
+                            {autoPilot && user ? 'AI Active' : 'EquiTrade'}
                         </button>
                     </div>
                 </div>
@@ -570,8 +593,10 @@ const Portfolio = () => {
                                                     </div>
                                                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Total AUM</p>
                                                 </div>
-                                                <p className="text-2xl font-black text-slate-900 tracking-tight">₹{(mockBalance + totalCurrent).toLocaleString()}</p>
-                                                <p className="text-[9px] font-bold text-slate-400 mt-1.5">Vault + Market Value</p>
+                                                <p className="text-2xl font-black text-slate-900 tracking-tight">₹{user ? (mockBalance + settlementBalance + totalCurrent).toLocaleString() : '---'}</p>
+                                                <p className="text-[9px] font-bold text-slate-400 mt-1.5">
+                                                    {settlementBalance > 0 ? `Vault + Market + ₹${settlementBalance.toLocaleString()} (T+1 Pending)` : 'Vault + Market Value'}
+                                                </p>
                                             </div>
                                         </div>
                                         <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
@@ -1186,7 +1211,7 @@ const Portfolio = () => {
             <AnimatePresence>
                 {showDetailModal && (
                     <div className="fixed inset-0 z-[150] flex items-center justify-center p-6 bg-slate-900/70 backdrop-blur-md">
-                        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }} className="bg-white w-full max-w-xl rounded-[48px] overflow-hidden shadow-2xl relative border border-white/20">
+                        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }} className="bg-white w-full max-w-xl rounded-[40px] overflow-hidden shadow-[0_40px_100px_-20px_rgba(0,0,0,0.25)] ring-1 ring-slate-900/5 relative border border-white/20">
                             <button onClick={() => setShowDetailModal(null)} className="absolute top-8 right-8 p-3 bg-slate-50 rounded-2xl hover:bg-rose-50 hover:text-rose-600 transition-all z-20">
                                 <X className="w-5 h-5" />
                             </button>
@@ -1257,7 +1282,7 @@ const Portfolio = () => {
             <AnimatePresence>
                 {showTopUpModal && (
                     <div className="fixed inset-0 z-[110] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-md">
-                        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white p-10 w-full max-w-md rounded-[48px] shadow-2xl relative border border-slate-200">
+                        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white p-10 w-full max-w-md rounded-[40px] shadow-[0_40px_100px_-20px_rgba(0,0,0,0.25)] ring-1 ring-slate-900/5 relative border border-slate-200">
                             <h3 className="text-2xl font-black text-slate-900 mb-2 uppercase italic tracking-tighter underline decoration-orange-600 decoration-4">Injection Protocol</h3>
                             <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-8">Add Mock Funds to Vault</p>
                             
@@ -1291,7 +1316,7 @@ const Portfolio = () => {
                             initial={{ opacity: 0, scale: 0.9, y: 20 }} 
                             animate={{ opacity: 1, scale: 1, y: 0 }} 
                             exit={{ opacity: 0, scale: 0.9, y: 20 }}
-                            className="bg-white p-10 w-full max-w-lg rounded-[48px] shadow-2xl relative border border-slate-200"
+                            className="bg-white p-10 w-full max-w-lg rounded-[40px] shadow-[0_40px_100px_-20px_rgba(0,0,0,0.25)] ring-1 ring-slate-900/5 relative border border-slate-200"
                         >
                             <div className="flex items-center gap-4 mb-8">
                                 <div className={`p-4 rounded-[20px] text-white ${newItem.type === 'BUY' ? 'bg-emerald-600' : 'bg-rose-600'}`}>
@@ -1357,13 +1382,13 @@ const Portfolio = () => {
                                 setShowExecuteConfirm(false);
                                 setPendingExecution(null);
                             }}
-                            className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
+                            className="absolute inset-0 bg-slate-900/60 backdrop-blur-xl"
                         />
                         <motion.div 
                             initial={{ scale: 0.9, opacity: 0, y: 20 }}
                             animate={{ scale: 1, opacity: 1, y: 0 }}
                             exit={{ scale: 0.9, opacity: 0, y: 20 }}
-                            className="relative bg-white w-full max-w-lg rounded-[48px] shadow-2xl overflow-hidden border border-slate-100"
+                            className="relative bg-white w-full max-w-lg rounded-[40px] shadow-[0_40px_100px_-20px_rgba(0,0,0,0.25)] ring-1 ring-slate-900/5 overflow-hidden"
                         >
                             <div className="p-12 text-center">
                                 <div className="w-24 h-24 bg-emerald-50 rounded-[32px] flex items-center justify-center mx-auto mb-8 text-emerald-600 shadow-inner">
@@ -1420,13 +1445,13 @@ const Portfolio = () => {
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}
                             onClick={() => setShowModeConfirm(false)}
-                            className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
+                            className="absolute inset-0 bg-slate-900/60 backdrop-blur-xl"
                         />
                         <motion.div 
                             initial={{ scale: 0.9, opacity: 0, y: 20 }}
                             animate={{ scale: 1, opacity: 1, y: 0 }}
                             exit={{ scale: 0.9, opacity: 0, y: 20 }}
-                            className="relative bg-white w-full max-w-lg rounded-[48px] shadow-2xl overflow-hidden border border-slate-100"
+                            className="relative bg-white w-full max-w-lg rounded-[40px] shadow-[0_40px_100px_-20px_rgba(0,0,0,0.25)] ring-1 ring-slate-900/5 overflow-hidden"
                         >
                             <div className="p-12 text-center">
                                 {mode === 'mock' ? (
@@ -1511,8 +1536,8 @@ const Portfolio = () => {
             <AnimatePresence>
                 {showPilotModal && (
                     <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
-                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowPilotModal(false)} className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" />
-                        <motion.div initial={{ scale: 0.9, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.9, opacity: 0, y: 20 }} className="relative bg-white w-full max-w-lg rounded-[48px] shadow-2xl overflow-hidden border border-slate-100">
+                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowPilotModal(false)} className="absolute inset-0 bg-slate-900/60 backdrop-blur-xl" />
+                        <motion.div initial={{ scale: 0.9, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.9, opacity: 0, y: 20 }} className="relative bg-white w-full max-w-lg rounded-[40px] shadow-[0_40px_100px_-20px_rgba(0,0,0,0.25)] ring-1 ring-slate-900/5 overflow-hidden">
                             <div className="p-12 text-center">
                                 <div className="w-24 h-24 bg-orange-50 rounded-[32px] flex items-center justify-center mx-auto mb-8 text-orange-600 shadow-inner">
                                     <Zap className="w-10 h-10 fill-current" />
@@ -1548,8 +1573,8 @@ const Portfolio = () => {
             <AnimatePresence>
                 {showDisengageModal && (
                     <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
-                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowDisengageModal(false)} className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" />
-                        <motion.div initial={{ scale: 0.9, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.9, opacity: 0, y: 20 }} className="relative bg-white w-full max-w-lg rounded-[48px] shadow-2xl overflow-hidden border border-slate-100">
+                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowDisengageModal(false)} className="absolute inset-0 bg-slate-900/60 backdrop-blur-xl" />
+                        <motion.div initial={{ scale: 0.9, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.9, opacity: 0, y: 20 }} className="relative bg-white w-full max-w-lg rounded-[40px] shadow-[0_40px_100px_-20px_rgba(0,0,0,0.25)] ring-1 ring-slate-900/5 overflow-hidden">
                             <div className="p-12 text-center">
                                 <div className="w-24 h-24 bg-rose-50 rounded-[32px] flex items-center justify-center mx-auto mb-8 text-rose-600 shadow-inner">
                                     <PowerOff className="w-10 h-10" />

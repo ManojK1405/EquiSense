@@ -75,17 +75,23 @@ body {
 }
 .live-dot { animation: live-pulse 1.5s ease-in-out infinite; }
 
-/* Custom Research Scrollbar - Hidden for premium look */
-.custom-research-scrollbar,
-.custom-research-scrollbar * {
-    scrollbar-width: none !important;
-    -ms-overflow-style: none !important;
+/* Custom Research Scrollbar - Subtle & Elegant */
+.custom-research-scrollbar::-webkit-scrollbar {
+    width: 4px;
 }
-.custom-research-scrollbar::-webkit-scrollbar,
-.custom-research-scrollbar *::-webkit-scrollbar {
-    display: none !important;
-    width: 0 !important;
-    height: 0 !important;
+.custom-research-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+}
+.custom-research-scrollbar::-webkit-scrollbar-thumb {
+    background: #e2e8f0;
+    border-radius: 999px;
+}
+.custom-research-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #cbd5e1;
+}
+.custom-research-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: #e2e8f0 transparent;
 }
 
 /* Hide spin buttons for number inputs */
@@ -95,3 +101,69 @@ input[type="number"]::-webkit-outer-spin-button {
     margin: 0;
 }
 input[type="number"] { -moz-appearance: textfield; }
+
+/* ── Markdown Table Styling ── */
+.prose table {
+    @apply w-full border-collapse my-4 text-xs;
+}
+.prose th {
+    @apply bg-slate-900 text-white font-bold px-3 py-2 text-left border border-slate-700 uppercase tracking-wider;
+}
+.prose td {
+    @apply border border-slate-200 px-3 py-2 text-slate-700 bg-white;
+}
+.prose tr:nth-child(even) td {
+    @apply bg-slate-50;
+}
+
+/* ── Institutional Glassmorphism ── */
+.glass-panel {
+    @apply bg-white/70 backdrop-blur-xl border border-white/40 shadow-[0_8px_32px_0_rgba(31,38,135,0.07)];
+}
+
+.glass-dark {
+    @apply bg-slate-900/80 backdrop-blur-xl border border-white/10 shadow-2xl;
+}
+
+/* ── Glowing Card Effect ── */
+.glow-card {
+    @apply relative transition-all duration-500 hover:-translate-y-1;
+}
+.glow-card::after {
+    content: '';
+    @apply absolute inset-0 rounded-[inherit] opacity-0 transition-opacity duration-500 -z-10 blur-2xl bg-gradient-to-br from-rose-500/20 to-orange-500/20;
+}
+.glow-card:hover::after {
+    @apply opacity-100;
+}
+
+/* ── Premium Progress Bar ── */
+.progress-bar-premium {
+    @apply h-1.5 rounded-full bg-slate-100 overflow-hidden relative;
+}
+.progress-bar-fill {
+    @apply h-full bg-gradient-to-r from-rose-500 to-orange-500 rounded-full transition-all duration-1000 ease-out;
+}
+
+/* ── Institutional Typography ── */
+.heading-institutional {
+    @apply font-black tracking-tight uppercase italic;
+}
+
+.label-premium {
+    @apply text-[10px] font-black uppercase tracking-[0.3em] text-slate-400;
+}
+
+/* ── Markdown Polish ── */
+.markdown-content h1, .markdown-content h2, .markdown-content h3 {
+    @apply font-black tracking-tight text-slate-900 mt-6 mb-4 uppercase text-sm;
+}
+.markdown-content p {
+    @apply mb-4 leading-relaxed;
+}
+.markdown-content ul {
+    @apply list-disc pl-5 mb-4 space-y-2;
+}
+.markdown-content strong {
+    @apply font-black text-slate-900;
+}

@@ -51,14 +51,14 @@ const AuthModal = () => {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           onClick={() => setShowAuthModal(false)}
-          className="absolute inset-0 bg-slate-900/40 backdrop-blur-md"
+          className="absolute inset-0 bg-slate-900/60 backdrop-blur-xl"
         />
         
         <motion.div
           initial={{ scale: 0.95, opacity: 0, y: 20 }}
           animate={{ scale: 1, opacity: 1, y: 0 }}
           exit={{ scale: 0.95, opacity: 0, y: 20 }}
-          className="relative w-full max-w-[440px] overflow-hidden rounded-[40px] bg-white shadow-[0_40px_100px_-20px_rgba(0,0,0,0.15)] border border-slate-100 flex flex-col"
+          className="relative w-full max-w-[440px] overflow-hidden rounded-[40px] bg-white shadow-[0_40px_100px_-20px_rgba(0,0,0,0.25)] ring-1 ring-slate-900/5 flex flex-col"
         >
           {/* Top Decorative Gradients */}
           <div className="absolute top-0 left-0 right-0 h-32 overflow-hidden pointer-events-none">

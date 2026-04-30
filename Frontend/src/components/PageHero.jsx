@@ -177,7 +177,7 @@ export default function PageHero({
         }[accentColor] || 'bg-rose-100 text-rose-700 border-rose-200';
 
         return (
-            <section className={`relative pt-28 pb-16 overflow-hidden bg-gradient-to-br ${bgMap}`}>
+            <section className={`relative pt-16 pb-12 overflow-hidden bg-gradient-to-br ${bgMap}`}>
                 {/* Diagonal slash */}
                 <div className={`absolute right-0 top-0 h-full w-[45%] bg-gradient-to-bl ${accentLine} opacity-[0.05] skew-x-[-12deg] translate-x-32 pointer-events-none`} />
                 {/* Large ghost letter */}
@@ -199,7 +199,7 @@ export default function PageHero({
                                 {badge.label}
                             </motion.div>
                         )}
-                        <motion.h1 variants={item} className="text-6xl md:text-8xl font-black text-slate-900 tracking-tighter leading-none mb-5 max-w-3xl">
+                        <motion.h1 variants={item} className="text-5xl md:text-7xl font-black text-slate-900 tracking-tighter leading-none mb-5 max-w-3xl">
                             {title}{' '}
                             <span className={`bg-gradient-to-r ${accentLine} bg-clip-text text-transparent italic`}>{titleAccent}</span>
                         </motion.h1>
@@ -332,7 +332,7 @@ export default function PageHero({
     }[accentColor] || 'bg-rose-500';
 
     return (
-        <section className={`relative pt-28 pb-16 overflow-hidden bg-gradient-to-br ${glowMap[accentColor] || glowMap.rose}`}>
+        <section className={`relative pt-16 pb-12 overflow-hidden bg-gradient-to-br ${glowMap[accentColor] || glowMap.rose}`}>
             <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-white/60 rounded-full blur-[100px] -mr-64 -mt-64 pointer-events-none" />
             <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-white/40 rounded-full blur-[80px] -ml-32 -mb-32 pointer-events-none" />
             <div className="absolute inset-0 pointer-events-none opacity-[0.03]"
@@ -351,7 +351,7 @@ export default function PageHero({
                             {badge.label}
                         </motion.div>
                     )}
-                    <motion.h1 variants={item} className="text-6xl md:text-8xl font-black text-slate-900 tracking-tighter leading-none mb-5">
+                    <motion.h1 variants={item} className="text-5xl md:text-7xl font-black text-slate-900 tracking-tighter leading-none mb-5">
                         {title}{' '}<span className="text-premium italic">{titleAccent}</span>
                     </motion.h1>
                     {subtitle && (

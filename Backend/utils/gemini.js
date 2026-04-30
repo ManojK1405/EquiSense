@@ -1,8 +1,16 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import axios from 'axios';
 import dotenv from 'dotenv';
+import YahooFinance from 'yahoo-finance2';
+import { fetchStockNews } from './news.js';
+import { executeStrategyDeployment } from '../services/execution.service.js';
 
 dotenv.config();
+
+const yahooFinance = new YahooFinance({ 
+    suppressNotices: ['yahooSurvey'],
+    validation: { logErrors: false }
+});
 
 const geminiApiKey = process.env.GEMINI_API_KEY;
 const FALLBACK_GEMINI_MODELS = [
@@ -93,16 +101,22 @@ export const getFinBERTSentiment = async (headlines) => {
             let scores = Array.isArray(results[0]) ? results[0] : results;
 
             if (scores && scores.length) {
-                // Normalize labels as different models use slightly different names (positive/neutral/negative)
+                // Normalize labels as different models use slightly different names
                 const getScore = (labelPart) => {
-                    const found = scores.find(s => s.label.toLowerCase().includes(labelPart.toLowerCase()));
+                    const found = scores.find(s => {
+                        const l = s.label.toLowerCase();
+                        if (labelPart === 'pos') return l.includes('pos') || l === 'label_2';
+                        if (labelPart === 'neg') return l.includes('neg') || l === 'label_0';
+                        return l.includes(labelPart.toLowerCase());
+                    });
                     return found ? found.score : 0;
                 };
 
                 const pos = getScore('pos');
                 const neg = getScore('neg');
-                console.log(`[Sentiment] Successfully used FinBERT model: ${model}`);
-                return pos - neg;
+                const score = pos - neg;
+                console.log(`[Sentiment] Successfully used FinBERT model: ${model} | Score: ${score.toFixed(2)}`);
+                return score;
             }
         } catch (error) {
             // Only log if it's the last one or not a 404
@@ -150,129 +164,34 @@ export const getAIPredictionReasoning = async (symbol, indicators, sentiment, tr
     if (!process.env.GEMINI_API_KEY) return "Technical indicators show a trend based on market volume.";
 
     try {
-        // ── Derive all context variables from available data ──────────────
-        const ta = trendAnalysis || {};
-        const overall = ta.overall || {};
-        const vol = ta.volume || {};
-        const mom = ta.momentum || {};
-        const sr = ta.supportResistance || {};
-        const bb = ta.indicators?.bollingerBands || {};
-        const macdInd = ta.indicators?.macd || {};
-        const rsiInd = ta.indicators?.rsi || {};
-
-        const marketTrend = `${overall.direction || 'N/A'} (${overall.strength || 'N/A'})`;
-        const relativeStrength = (mom.value || 0) > 5 ? 'Outperforming' : (mom.value || 0) < -5 ? 'Underperforming' : 'In-line';
-        const beta = 'Refer fundamentals';
-        const bbWidth = bb.upper && bb.lower && bb.middle
-            ? ((bb.upper - bb.lower) / bb.middle * 100).toFixed(1) : 'N/A';
-        const volatilityRegime = bbWidth !== 'N/A'
-            ? (parseFloat(bbWidth) > 8 ? `High (BB Width: ${bbWidth}%)` : parseFloat(bbWidth) < 4 ? `Low (BB Width: ${bbWidth}%)` : `Normal (BB Width: ${bbWidth}%)`)
-            : 'N/A';
-        const smaContext = overall.description || 'SMA data pending';
-        const higherHighs = overall.direction === 'uptrend';
-        const keyLevels = `S1: ₹${sr.support1 || 'N/A'} | R1: ₹${sr.resistance1 || 'N/A'} | S2: ₹${sr.support2 || 'N/A'}`;
-        const atr = bbWidth !== 'N/A' ? `Implied from BB Width ${bbWidth}%` : 'N/A';
-        const macdHist = indicators.macd?.histogram || macdInd.histogram || 0;
-        const macdHistTrend = macdHist > 0.5 ? 'Expanding positive' : macdHist > 0 ? 'Narrowing positive' : macdHist > -0.5 ? 'Narrowing negative' : 'Expanding negative';
-        const volumeContext = vol.trend ? `${vol.trend} (${vol.change || 0}% vs prior 5 sessions)` : 'N/A';
-        const smartMoneyFlow = (vol.trend === 'increasing' && overall.direction === 'uptrend') ? 'Accumulation signals'
-            : (vol.trend === 'increasing' && overall.direction === 'downtrend') ? 'Distribution signals' : 'No clear institutional flow';
-        const newsSummary = sentiment > 0.3 ? 'Positive media cycle' : sentiment < -0.3 ? 'Negative media headwinds' : 'Neutral news flow';
-        const upcomingEvents = 'None flagged';
-        const rsiVal = indicators.rsi || rsiInd.value || 50;
-        const macdBullish = (indicators.macd?.MACD || 0) > (indicators.macd?.signal || 0);
-        const trendScore = Math.min(100, Math.max(0,
-            (overall.direction === 'uptrend' ? 40 : overall.direction === 'downtrend' ? 10 : 25) +
-            (rsiVal > 50 ? 20 : 5) + (macdBullish ? 20 : 5) + (sentiment > 0 ? 15 : sentiment < 0 ? 0 : 8)
-        ));
-        const momentumConfirmation = (macdBullish && rsiVal > 50) ? 'CONFIRMS – Momentum aligns with trend'
-            : (!macdBullish && rsiVal < 50) ? 'CONFIRMS – Bearish momentum aligns' : 'DIVERGES – Momentum conflicts with price';
-        const smartMoneyBias = (vol.trend === 'increasing' && overall.direction === 'uptrend') ? 'Bullish accumulation'
-            : (vol.trend === 'decreasing' && overall.direction === 'downtrend') ? 'Bearish exhaustion' : 'Neutral / Inconclusive';
-        const riskRegime = volatilityRegime.includes('High') ? 'ELEVATED' : volatilityRegime.includes('Low') ? 'COMPRESSED' : 'STANDARD';
-
-        const prompt = `
-            Act as a SEBI-registered senior equity research analyst with a hybrid approach combining technical, quantitative, and behavioral finance insights. Produce a high-conviction, data-driven micro research note.
-
-            Stock: ${symbol}
-            Signal Bias: ${sentiment > 0 ? 'BULLISH' : sentiment < 0 ? 'BEARISH' : 'NEUTRAL'}
-
-            === MARKET CONTEXT ===
-            - Index Trend (NIFTY/Sector): ${marketTrend}
-            - Relative Strength vs Index: ${relativeStrength}
-            - Beta: ${beta}
-            - Volatility Regime: ${volatilityRegime}
-
-            === TECHNICAL STRUCTURE ===
-            - Price vs SMA (20/50/200): ${smaContext}
-            - Trend Structure: ${higherHighs ? 'HH-HL (Uptrend)' : 'LH-LL (Downtrend)'}
-            - Key Support/Resistance Zones: ${keyLevels}
-            - ATR (14): ${atr}
-
-            === MOMENTUM & FLOW ===
-            - RSI (14): ${rsiVal.toFixed(2)}
-            - RSI Regime: ${rsiVal > 60 ? 'Bullish Range' : rsiVal < 40 ? 'Bearish Range' : 'Neutral Range'}
-            - MACD State: ${macdBullish ? 'Bullish Crossover' : 'Bearish Crossover'}
-            - MACD Histogram Trend: ${macdHistTrend}
-            - Volume vs 20D Avg: ${volumeContext}
-            - Delivery % / Institutional Activity (if available): ${smartMoneyFlow}
-
-            === SENTIMENT & NEWS FLOW ===
-            - News Sentiment Score: ${sentiment.toFixed(2)} (-1 to +1)
-            - Recent Narrative: ${newsSummary}
-            - Event Risk: ${upcomingEvents}
-
-            === DERIVED INSIGHTS ===
-            - Trend Strength Score (0-100): ${trendScore}
-            - Momentum Confirmation: ${momentumConfirmation}
-            - Smart Money Bias: ${smartMoneyBias}
-            - Risk Regime: ${riskRegime}
-
-            ---
-
-            Write EXACTLY 5 sections with deep insight:
-
-            1. **Trend & Structure**
-            - Analyze trend strength using SMA alignment, HH/HL or LH/LL structure, and relative strength vs index.
-            - Explain *what is driving the trend structurally*, not just direction.
-
-            2. **Momentum Validation**
-            - Combine RSI regime + MACD + histogram slope.
-            - Clearly state whether momentum CONFIRMS, LEADS, or DIVERGES from price.
-
-            3. **Volume, Flow & Sentiment**
-            - Integrate volume behavior, delivery/institutional signals, and news sentiment.
-            - Infer whether accumulation, distribution, or exhaustion is occurring.
-
-            4. **Risk-Reward & Fragility**
-            - Highlight asymmetric opportunity or lack of it.
-            - Define *invalidation conditions* (trend breaks, momentum failure, volatility expansion).
-
-            5. **Investment Verdict**
-            - Based on ALL the above data, clearly state whether this stock is suitable for:
-              (a) Short-term trading (Swing): FAVORABLE / NEUTRAL / AVOID — with 1 reason.
-              (b) Medium-term investment (3-12 months): FAVORABLE / NEUTRAL / AVOID — with 1 reason.
-              (c) Long-term portfolio (1+ years): FAVORABLE / NEUTRAL / AVOID — with 1 reason.
-
-            ---
-
-            Strict Rules:
-            - Use precise numbers (RSI, ATR, % deviations, etc.).
-            - No generic statements — every line must add informational edge.
-            - Avoid retail clichés (e.g., "strong buy", "good stock").
-            - Write like a hedge fund note: ultra-concise, sharp, insight-heavy.
-            - MAX 10-12 WORDS per bullet point.
-            - NO HEADERS (###, **). No bold text inside points.
-            - Use telegram-style: "Price below 200 SMA; structural downtrend" instead of "The price is currently trading below its 200-day simple moving average, which indicates a structural downtrend."
-            - Every point MUST be a single line.
-            - Max 1 point per section. Total 5 points.
-            - No direct trade recommendations (no entry/exit prices).
+        const systemInstruction = `
+            Persona: Senior Institutional Equity Research Analyst.
+            Objective: Provide a high-fidelity, quantitative verdict for ${symbol}.
+            
+            Mandate:
+            - You have access to tools (get_stock_price, get_stock_fundamentals, get_stock_news_sentiment).
+            - Use them if the provided context is insufficient or to verify live data.
+            - Provide 5 concise points (Trend, Momentum, Flow/Sentiment, Risk-Reward, Verdict).
+            - The **Verdict** point MUST be extremely direct (e.g., **AVOID / BUY / SELL**) and serve as the final executive summary.
+            - Style: Bold key metrics. Decisive tone. Use Telegram-style conciseness.
+            - Total response must be under 150 words.
         `;
 
-        return await generateGeminiText(prompt);
+        const context = `Analysis Context for ${symbol}: 
+        Sentiment: ${sentiment}
+        Indicators: ${JSON.stringify(indicators)}
+        Trend Analysis: ${JSON.stringify(trendAnalysis)}`;
+
+        const response = await runAgenticChat(
+            [{ role: 'user', content: `Provide your institutional reasoning for the current ${symbol} analysis. ${context}` }],
+            systemInstruction,
+            'SYSTEM'
+        );
+
+        return response;
     } catch (error) {
-        console.error("Gemini Reasoning Error:", error);
-        return "Analysis suggests a potential move based on current RSI levels.";
+        console.error("Agentic Reasoning Error:", error);
+        return "Analysis suggests a potential move based on current institutional momentum.";
     }
 };
 
@@ -335,3 +254,195 @@ export const extractStockSymbol = async (query) => {
     }
 };
 
+// --- AGENTIC RAG (FUNCTION CALLING) ADDITIONS ---
+
+const agentTools = [
+  {
+    functionDeclarations: [
+      {
+        name: "get_stock_price",
+        description: "Fetches live price, valuation (P/E), 52-week high/low, and moving averages for a stock.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            symbol: { type: "STRING", description: "The stock symbol with exchange suffix (e.g., RELIANCE.NS, TSLA)" }
+          },
+          required: ["symbol"],
+        },
+      },
+      {
+        name: "get_stock_fundamentals",
+        description: "Fetches detailed financial ratios like Debt-to-Equity, ROE, and Dividend Yield.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            symbol: { type: "STRING", description: "The stock symbol" }
+          },
+          required: ["symbol"],
+        },
+      },
+      {
+        name: "get_stock_news_sentiment",
+        description: "Fetches latest news headlines and a sentiment score (-1 to 1).",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+             symbol: { type: "STRING", description: "The stock symbol" }
+          },
+          required: ["symbol"],
+        }
+      },
+      {
+        name: "deploy_investment_strategy",
+        description: "Executes a multi-stock investment strategy for a specific amount. Only call this after user confirms the amount and mode.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+             amount: { type: "NUMBER", description: "The total amount to invest (e.g., 10000)" },
+             mode: { type: "STRING", enum: ["mock", "live"], description: "The trading mode" }
+          },
+          required: ["amount", "mode"],
+        }
+      }
+    ],
+  },
+];
+
+const executeAgentTool = async (functionCall, userId) => {
+    const { name, args } = functionCall;
+    console.log(`[Agent] Executing tool: ${name} with args:`, args);
+
+    if (name === "get_stock_price") {
+        try {
+            const quote = await yahooFinance.quote(args.symbol);
+            return {
+                symbol: args.symbol,
+                price: quote.regularMarketPrice,
+                currency: quote.currency,
+                peRatio: quote.trailingPE || 'N/A',
+                fiftyTwoWeekHigh: quote.fiftyTwoWeekHigh,
+                fiftyTwoWeekLow: quote.fiftyTwoWeekLow,
+                marketCap: quote.marketCap,
+                volume: quote.regularMarketVolume,
+                averageVolume: quote.averageDailyVolume10Day,
+                twoHundredDayAverage: quote.twoHundredDayAverage,
+                fiftyDayAverage: quote.fiftyDayAverage,
+                priceToBook: quote.priceToBook
+            };
+        } catch (error) {
+            return { error: `Failed to fetch price for ${args.symbol}: ${error.message}` };
+        }
+    }
+
+    if (name === "get_stock_fundamentals") {
+        try {
+            const summary = await yahooFinance.quoteSummary(args.symbol, { 
+                modules: ["financialData", "defaultKeyStatistics"] 
+            });
+            return {
+                symbol: args.symbol,
+                debtToEquity: summary.financialData?.debtToEquity,
+                returnOnEquity: summary.financialData?.returnOnEquity,
+                currentRatio: summary.financialData?.currentRatio,
+                grossProfits: summary.financialData?.grossProfits,
+                dividendYield: summary.defaultKeyStatistics?.dividendYield,
+                beta: summary.defaultKeyStatistics?.beta
+            };
+        } catch (error) {
+            return { error: `Failed to fetch fundamentals for ${args.symbol}: ${error.message}` };
+        }
+    }
+
+    if (name === "get_stock_news_sentiment") {
+        try {
+            const news = await fetchStockNews(args.symbol);
+            const headlines = news.slice(0, 5).map(n => n.title);
+            const sentiment = await getNewsSentiment(headlines);
+            return {
+                symbol: args.symbol,
+                sentimentScore: sentiment,
+                sentimentInterpretation: sentiment > 0.3 ? 'Positive' : sentiment < -0.3 ? 'Negative' : 'Neutral',
+                recentHeadlines: headlines
+            };
+        } catch (error) {
+            return { error: `Failed to fetch news for ${args.symbol}: ${error.message}` };
+        }
+    }
+
+    if (name === "deploy_investment_strategy") {
+        try {
+            if (!userId) throw new Error("Authentication required for deployment.");
+            const result = await executeStrategyDeployment(userId, args.amount, args.mode);
+            return result;
+        } catch (error) {
+            return { error: `Strategy deployment failed: ${error.message}` };
+        }
+    }
+
+    return { error: "Unknown function" };
+};
+
+export const runAgenticChat = async (messages, systemInstruction, userId) => {
+    if (!process.env.GEMINI_API_KEY || FALLBACK_GEMINI_MODELS.length === 0) {
+        throw new Error('Gemini configuration unavailable');
+    }
+
+    const modelName = activeGeminiModel || FALLBACK_GEMINI_MODELS[0];
+    console.log(`[Agentic Chat] Using model: ${modelName}`);
+    const model = genAI.getGenerativeModel({
+        model: modelName,
+        systemInstruction: {
+            parts: [{ text: systemInstruction }]
+        },
+        tools: agentTools
+    });
+
+    let history = messages.slice(0, -1).map(m => ({
+        role: m.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: m.content }]
+    }));
+
+    console.log(`[Agentic Chat] History length: ${history.length}`);
+    
+    // CRITICAL: Gemini history MUST start with a 'user' role. 
+    // If the first message is from the assistant/model, we skip it for the history.
+    if (history.length > 0 && history[0].role === 'model') {
+        console.log('[Agentic Chat] Removing leading model message from history');
+        history = history.slice(1);
+    }
+
+    const latestMessage = messages[messages.length - 1].content;
+    console.log(`[Agentic Chat] Latest message: ${latestMessage}`);
+
+    const chatSession = model.startChat({ history });
+
+    let result = await chatSession.sendMessage(latestMessage);
+    let response = await result.response;
+
+    // Execution Loop for Function Calling (Handles multiple parallel tool calls)
+    let functionCalls = response.functionCalls ? response.functionCalls() : [];
+    
+    while (functionCalls && functionCalls.length > 0) {
+        const toolResponses = [];
+        
+        // Execute all requested tools in parallel
+        for (const call of functionCalls) {
+            const apiResponse = await executeAgentTool(call, userId);
+            toolResponses.push({
+                functionResponse: {
+                    name: call.name,
+                    response: apiResponse
+                }
+            });
+        }
+
+        // Send all tool results back to Gemini in one go
+        result = await chatSession.sendMessage(toolResponses);
+        response = await result.response;
+        functionCalls = response.functionCalls ? response.functionCalls() : [];
+    }
+
+    const finalResponse = response.text().trim();
+    console.log(`[Agentic Chat] Final Response length: ${finalResponse.length}`);
+    return finalResponse;
+};

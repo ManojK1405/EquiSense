@@ -86,15 +86,15 @@ cron.schedule('*/5 * * * *', async () => {
 import { getMarketSummaryData } from './services/market.service.js';
 import { refreshIntradayPulseCache } from './controllers/strategy.controller.js';
 
-cron.schedule('*/20 * * * *', async () => {
-  console.log('--- Running Background Stock & News Update ---');
-  try {
-    await getMarketSummaryData();
-    console.log('Successfully updated market insights.');
-  } catch (error) {
-    console.error('Error in background job:', error);
-  }
-});
+// cron.schedule('*/20 * * * *', async () => {
+//   console.log('--- Running Background Stock & News Update ---');
+//   try {
+//     await getMarketSummaryData();
+//     console.log('Successfully updated market insights.');
+//   } catch (error) {
+//     console.error('Error in background job:', error);
+//   }
+// });
 
 cron.schedule('*/30 * * * *', async () => {
   console.log('--- Running Background Intraday Pulse Refresh ---');
@@ -125,4 +125,5 @@ process.on('SIGINT', () => {
     process.exit(0);
   });
 });
+
 

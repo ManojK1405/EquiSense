@@ -400,13 +400,13 @@ const Settings = () => {
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}
                             onClick={() => setShowBrokerModal(false)}
-                            className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
+                            className="absolute inset-0 bg-slate-900/60 backdrop-blur-xl"
                         />
                         <motion.div 
                             initial={{ scale: 0.9, opacity: 0, y: 20 }}
                             animate={{ scale: 1, opacity: 1, y: 0 }}
                             exit={{ scale: 0.9, opacity: 0, y: 20 }}
-                            className="relative bg-white w-full max-w-xl rounded-[48px] shadow-2xl overflow-hidden"
+                            className="relative bg-white w-full max-w-xl rounded-[40px] shadow-[0_40px_100px_-20px_rgba(0,0,0,0.25)] ring-1 ring-slate-900/5 overflow-hidden"
                         >
                             <div className="p-12">
                                 <div className="flex justify-between items-center mb-10">
@@ -527,13 +527,13 @@ const Settings = () => {
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}
                             onClick={() => setShowDisconnectConfirm(false)}
-                            className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
+                            className="absolute inset-0 bg-slate-900/60 backdrop-blur-xl"
                         />
                         <motion.div 
                             initial={{ scale: 0.9, opacity: 0, y: 20 }}
                             animate={{ scale: 1, opacity: 1, y: 0 }}
                             exit={{ scale: 0.9, opacity: 0, y: 20 }}
-                            className="relative bg-white w-full max-w-md rounded-[48px] shadow-2xl overflow-hidden border border-slate-100"
+                            className="relative bg-white w-full max-w-md rounded-[40px] shadow-[0_40px_100px_-20px_rgba(0,0,0,0.25)] ring-1 ring-slate-900/5 overflow-hidden"
                         >
                             <div className="p-12 text-center">
                                 <div className="w-20 h-20 bg-rose-50 rounded-[28px] flex items-center justify-center mx-auto mb-8 text-rose-600 shadow-inner">

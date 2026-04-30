@@ -1,5 +1,5 @@
 import YahooFinance from 'yahoo-finance2';
-import { getAIStrategy, getNewsSentiment, generateGeminiText } from '../utils/gemini.js';
+import { getAIStrategy, getNewsSentiment, generateGeminiText, runAgenticChat } from '../utils/gemini.js';
 import { fetchStockNews } from '../utils/news.js';
 import * as TI from 'technicalindicators';
 import { PrismaClient } from '@prisma/client';
@@ -91,368 +91,95 @@ export const generateStrategy = async (req, res) => {
     return res.status(400).json({ error: 'amount and riskLevel are required.' });
   }
 
-  const investAmount = parseFloat(amount);
-  if (isNaN(investAmount) || investAmount <= 0) {
-    return res.status(400).json({ error: 'Invalid investment amount.' });
-  }
-
-  const resolvedSector = (sector || 'any').toLowerCase();
-
-  let symbols;
   try {
-    symbols = await getDynamicSymbols(resolvedSector, 8);
-  } catch (err) {
-    return res.status(503).json({ error: 'Failed to dynamically fetch market symbols.' });
-  }
-
-  console.log(`[Strategy] ₹${investAmount}, risk=${riskLevel}, sector=${resolvedSector}, horizon=${horizon}`);
-
-  const [indexSnapshots, momentumResults, quoteResults] = await Promise.all([
-    Promise.all(NIFTY_INDICES.map(fetchMomentum)),
-    Promise.all(symbols.map(fetchMomentum)),
-    Promise.all(symbols.map(fetchQuoteSummary)),
-  ]);
-
-  const niftySnapshot = indexSnapshots[0];
-  const bankNiftySnapshot = indexSnapshots[1];
-
-  const stockData = symbols
-    .map((sym, i) => ({ momentum: momentumResults[i], quote: quoteResults[i] }))
-    .filter(d => d.momentum && d.quote)
-    .map(d => ({
-      symbol: d.momentum.symbol,
-      name: d.quote.name,
-      price: d.momentum.currentPrice,
-      returnPct: d.momentum.returnPct,
-      volumeTrend: d.momentum.volumeTrend,
-      pe: d.quote.pe,
-    }))
-    .sort((a, b) => b.returnPct - a.returnPct);
-
-  if (stockData.length === 0) {
-    return res.status(503).json({ error: 'Unable to fetch market data. Try again shortly.' });
-  }
-
-  const horizonText = `${horizon} Year${horizon > 1 ? 's' : ''}`;
-  const riskScore = riskLevel === 'conservative' ? 'Low' : riskLevel === 'aggressive' ? 'High' : 'Moderate';
-
-  // Compact market context (fewer tokens)
-  const topStocks = stockData.slice(0, 5);
-  const mktLines = [
-    `N50:${niftySnapshot?.returnPct ?? 'N/A'}% BNF:${bankNiftySnapshot?.returnPct ?? 'N/A'}%`,
-    ...topStocks.map(s => `${s.symbol}|${s.name}|P:${s.price?.toFixed(0)}|30d:${s.returnPct}%|V:${s.volumeTrend}|PE:${s.pe?.toFixed(1) ?? 'N/A'}`),
-  ].join('\n');
-
-  const prompt = `
-    Act as the Chief Investment Officer (CIO) of a boutique Indian wealth management firm. 
-    Construct a sophisticated "Institutional Alpha Portfolio" based on the following parameters:
-    
-    Client Profile:
-    - Principal: ₹${investAmount}
-    - Risk Mandate: ${riskLevel}
-    - Sector Focus: ${resolvedSector}
-    - Time Horizon: ${horizonText}
-    
-    Market Intelligence Feed:
-    ${mktLines}
-    
-    Architectural Rules:
-    1. Capital Allocation: Dynamically weight assets. For smaller amounts (e.g. < ₹50,000), strictly limit to 3-5 high-conviction picks to prevent over-diversification.
-    2. Diversity: Include a mix of high-momentum stocks and defensive hedges.
-    3. Mandatory Specificity: For Debt and Gold, NEVER use generic names. Use real Indian ETFs (e.g., "GOLDBEES.NS", "LIQUIDBEES.NS", etc.)
-    4. Granularity: Ensure no single stock is weighted below 10% of the total portfolio.
-    5. Unit-Awareness: The "amount" allocated to a stock MUST be enough to buy at least 1 or 2 full shares based on the provided current price. If ₹${investAmount} is too small for a specific stock (e.g. MRF, Maruti), DO NOT recommend it; suggest a lower-priced alternative or a Nifty ETF (NIFTYBEES.NS) instead.
-    6. Compliance: Total weights must equal exactly 100%. Total amounts must sum to ₹${investAmount}.
-    
-    Constraint: Return ONLY valid JSON.
-    {
-      "strategyTitle": "String",
-      "summary": "High-level summary",
-      "riskScore": "${riskScore}",
-      "projectedReturnRange": "% range", 
-      "horizon": "${horizonText}",
-      "allocation": [
-        {
-          "name": "Ticker (Symbol.NS / Symbol.BO)",
-          "displayName": "Full Name",
-          "type": "stock | debt | gold | cash",
-          "weight": number,
-          "amount": number,
-          "reason": "Rationale",
-          "risk": "Low | Moderate | High"
-        }
-      ],
-      "marketOutlook": "Macro projection",
-      "keyRisks": ["Risk1"],
-      "rebalanceAdvice": "Advice"
-    }
-  `;
-
-  try {
-    const raw = await getAIStrategy(prompt);
-    console.log('[Strategy] Raw Gemini response:', raw.substring(0, 200));
-
-    const strategy = JSON.parse(raw);
-
-    if (Array.isArray(strategy.allocation)) {
-      // Ensure weights sum to 100%
-      let totalWeight = strategy.allocation.reduce((sum, item) => sum + (Number(item.weight) || 0), 0);
-
-      // If the AI hallucinated and under-allocated, fill the gap with a Cash Reserve
-      if (totalWeight < 100) {
-        const gap = 100 - totalWeight;
-        strategy.allocation.push({
-          name: 'LIQUIDBEES.NS',
-          displayName: 'Cash Reserve (Auto-Balanced)',
-          type: 'cash',
-          weight: gap,
-          reason: 'System auto-allocated remaining capital to liquid reserves to ensure 100% deployment of mandate.',
-          risk: 'Low'
-        });
+    const systemInstruction = `
+      Persona: Senior Quantitative Architect & CIO.
+      Objective: Generate a comprehensive, institutional-grade investment blueprint for the Indian stock market (NSE).
+      
+      Mandate Details:
+      - Commitment: ₹${amount}
+      - Risk Profile: ${riskLevel}
+      - Sector Focus: ${sector}
+      - Time Horizon: ${horizon} Years
+      
+      CRITICAL INSTRUCTION: 
+      - You MUST use your tools (get_stock_price, get_stock_fundamentals, get_stock_news_sentiment) to research 3-5 high-conviction assets.
+      - BRANDING: NEVER use the word "Alpha" in the "strategyTitle" or "summary". Instead, use terms like "Growth Strategy", "Institutional Blueprint", "Wealth Engine", or "Quantitative Mandate".
+      - Return ONLY a raw JSON object with this EXACT structure (no markdown code blocks):
+      {
+        "strategyTitle": "String (Short, punchy)",
+        "summary": "String (2 sentences)",
+        "projectedReturnRange": "String (e.g. 18-22%)",
+        "riskScore": "String (Low/Medium/High)",
+        "horizon": "String",
+        "allocation": [
+          {
+            "name": "SYMBOL.NS",
+            "displayName": "Company Name",
+            "weight": Number (percentage),
+            "amount": Number (rupees),
+            "risk": "Low/Medium/High",
+            "reason": "Short quantitative logic"
+          }
+        ],
+        "marketOutlook": "String (1 paragraph analysis)",
+        "executionGuidance": "String (Technical entry levels)"
       }
+    `;
 
-      // Re-calculate the absolute amounts to ensure precision
-      strategy.allocation = strategy.allocation.map(item => ({
-        ...item,
-        amount: Math.round((Number(item.weight) / 100) * investAmount),
-      }));
-    }
-
-    strategy.generatedAt = new Date().toISOString();
-    strategy.inputParams = { amount: investAmount, riskLevel, sector: resolvedSector, horizon };
-    strategy.marketSnapshot = {
-      nifty50_30d: niftySnapshot?.returnPct,
-      bankNifty_30d: bankNiftySnapshot?.returnPct,
-      topMover: stockData[0]?.symbol,
-      topMoverReturn: stockData[0]?.returnPct,
-    };
-
-    res.json(strategy);
-  } catch (err) {
-    console.error('[Strategy] Error:', err.message);
-    res.status(500).json({ error: 'Strategy generation failed. Please try again.' });
-  }
-};
-
-const safeSMA = (values, period) => {
-  if (!values || values.length < period) return null;
-  const output = TI.SMA.calculate({ period, values }) || [];
-  return output.length ? output[output.length - 1] : null;
-};
-
-
-
-const scoreIntraday = ({ return5, volumeSpike, currentRSI, trend }) => {
-  let score = 0;
-  score += Math.max(-20, Math.min(40, return5 * 4));
-  score += volumeSpike > 1.25 ? 24 : volumeSpike > 1.1 ? 14 : volumeSpike < 0.9 ? -12 : 0;
-  score += currentRSI < 30 ? 14 : currentRSI > 85 ? -18 : currentRSI > 75 ? -8 : 0;
-  score += trend === 'bullish' ? 18 : trend === 'bearish' ? -12 : 0;
-  return Math.round(score);
-};
-
-const makeIntradaySignal = (score) => {
-  if (score >= 50) return 'Strong Long';
-  if (score >= 30) return 'Long Setup';
-  if (score >= 10) return 'Watch for Entry';
-  if (score >= -10) return 'Sideways/Wait';
-  return 'Avoid';
-};
-
-async function fetchIntradayCandidate(symbol) {
-  try {
-    const endDate = new Date();
-    const startDate = new Date();
-    startDate.setDate(endDate.getDate() - 35);
-
-    const chart = await yahooFinance.chart(symbol, {
-      period1: startDate.toISOString().split('T')[0],
-      interval: '1d',
-    }).catch(() => null);
-
-    const quotes = chart?.quotes?.filter(q => q && q.close != null) || [];
-    if (quotes.length < 12) return null;
-
-    const latest = quotes[quotes.length - 1];
-    const fiveAgo = quotes[quotes.length - 6];
-    const tenAgo = quotes[quotes.length - 11];
-    if (!fiveAgo || !tenAgo) return null;
-
-    const closes = quotes.map(q => q.close);
-    const avgVol10 = quotes.slice(-10).reduce((sum, q) => sum + (q.volume || 0), 0) / 10;
-    const volumeSpike = avgVol10 > 0 ? (latest.volume || 0) / avgVol10 : 1;
-    const currentRSI = TI.RSI.calculate({ values: closes, period: Math.min(14, closes.length - 1) })?.pop() || 50;
-    const sma5 = safeSMA(closes, 5);
-    const sma20 = safeSMA(closes, 20);
-    const trend = sma5 && sma20 ? (sma5 > sma20 ? 'bullish' : sma5 < sma20 ? 'bearish' : 'neutral') : 'neutral';
-    const return5 = ((latest.close - fiveAgo.close) / fiveAgo.close) * 100;
-    const return10 = ((latest.close - tenAgo.close) / tenAgo.close) * 100;
-
-    const quote = await fetchQuoteSummary(symbol);
-    const name = quote?.name || symbol;
-
-    const baseScore = scoreIntraday({ return5, volumeSpike, currentRSI, trend });
-    const entryPrice = latest.close;
-
-    const entryMin = (entryPrice * 0.995).toFixed(1);
-    const entryMax = (entryPrice * 1.003).toFixed(1);
-    const entryRange = `${entryMin} - ${entryMax}`;
-
-    const targetBase = entryPrice * (1 + Math.min(0.05, Math.max(0.025, baseScore / 200)));
-    const targetMin = (targetBase * 0.99).toFixed(1);
-    const targetMax = (targetBase * 1.015).toFixed(1);
-    const targetRange = `${targetMin} - ${targetMax}`;
-
-    const stopBase = entryPrice * 0.985;
-    const stopMin = (stopBase * 0.99).toFixed(1);
-    const stopMax = (stopBase * 1.01).toFixed(1);
-    const stopRange = `${stopMin} - ${stopMax}`;
-
-    const support = parseFloat((Math.min(latest.close, fiveAgo.close) * 0.98).toFixed(2));
-    const resistance = parseFloat((Math.max(latest.close, fiveAgo.close) * 1.02).toFixed(2));
-
-    return {
-      symbol,
-      name,
-      currentPrice: latest.close,
-      return5: parseFloat(return5.toFixed(2)),
-      return10: parseFloat(return10.toFixed(2)),
-      volumeSpike: parseFloat(volumeSpike.toFixed(2)),
-      currentRSI: parseFloat(currentRSI.toFixed(1)),
-      trend,
-      score: baseScore,
-      signal: makeIntradaySignal(baseScore),
-      entry: entryRange,
-      target: targetRange,
-      stopLoss: stopRange,
-      support,
-      resistance,
-      chartPoints: quotes.slice(-20).map(q => ({ date: q.date, close: q.close })),
-    };
+    const response = await runAgenticChat([{ role: 'user', content: 'Generate my investment blueprint now.' }], systemInstruction, req.userId);
+    
+    // Clean JSON response (strip markdown backticks if any)
+    const cleaned = response.replace(/```json|```/g, '').trim();
+    res.json(JSON.parse(cleaned));
   } catch (error) {
-    console.error(`[Intraday] Candidate fetch failed for ${symbol}:`, error.message);
-    return null;
+    console.error('[Generate Strategy] Error:', error.message);
+    res.status(500).json({ error: 'Failed to architect strategy. Market data service unavailable.' });
   }
-}
-
+};
 export const generateIntradayPulse = async (req, res) => {
-  const resolvedSector = (req.body?.sector || 'any').toLowerCase();
-
-  // 1. Check Institutional Cache
-  const cached = pulseCache.get(resolvedSector);
-  const now = Date.now();
-  if (cached && (now - cached.timestamp < PULSE_CACHE_DURATION)) {
-    console.log(`[IntradayPulse] Serving ${resolvedSector} from institutional cache`);
-    return res.json(cached.data);
-  }
-
+  const { sector } = req.body;
   try {
-    const data = await fetchIntradayPulseData(resolvedSector);
+    const systemInstruction = `
+      Persona: High-Frequency Quantitative Trader.
+      Objective: Generate a 'Live Intraday Pulse' report for the ${sector || 'any'} sector.
+      
+      Mandate:
+      - Use tools to find 5 high-momentum stocks for today.
+      - Return a JSON report with exactly:
+        "marketPulse": { "niftyReturn": Number, "bankNiftyReturn": Number, "generatedAt": "String" },
+        "summary": "String",
+        "picks": [
+          {
+            "symbol": "String",
+            "name": "String",
+            "currentPrice": Number,
+            "return5": Number (5-minute change %),
+            "sentiment": Number (-1 to 1),
+            "sentimentHeadline": "String (e.g. Bullish Breakout)",
+            "score": Number (0-100),
+            "signal": "STRONG BUY / BUY / NEUTRAL / SELL",
+            "currentRSI": Number,
+            "volumeSpike": Number (ratio, e.g. 1.5 for 150%),
+            "trend": "String (Uptrend/Downtrend)",
+            "target": Number,
+            "stopLoss": Number,
+            "notes": ["String (Strategic Analysis)"]
+          }
+        ]
+    `;
 
-    // Store in cache
-    pulseCache.set(resolvedSector, {
-      timestamp: now,
-      data
-    });
-
-    res.json(data);
+    const response = await runAgenticChat([{ role: 'user', content: 'Give me the intraday pulse now.' }], systemInstruction, req.userId);
+    const cleaned = response.replace(/```json|```/g, '').trim();
+    res.json(JSON.parse(cleaned));
   } catch (error) {
-    console.error('[Intraday] Pulse generation failed:', error.message);
-    res.status(500).json({ error: 'Intraday pulse generation failed. Please try again later.' });
+    console.error('[Intraday Pulse] Error:', error.message);
+    res.status(500).json({ error: 'Intraday engine failure.' });
   }
+};export const refreshIntradayPulseCache = async () => {
+  console.log('[Agent] Skipping background refresh; switching to real-time agentic pulse.');
 };
 
-/**
- * Shared logic to fetch intraday pulse data (extracted for background refresh)
- */
-async function fetchIntradayPulseData(sector) {
-  const resolvedSector = sector.toLowerCase();
-
-  let candidates;
-  try {
-    candidates = await getDynamicSymbols(resolvedSector, 10);
-  } catch (err) {
-    throw new Error('Failed to dynamically fetch intraday candidates.');
-  }
-
-  const [indexSnapshots, candidateRows] = await Promise.all([
-    Promise.all(NIFTY_INDICES.map(fetchMomentum)),
-    Promise.all(candidates.map(fetchIntradayCandidate)),
-  ]);
-
-  const marketPulse = {
-    niftyReturn: indexSnapshots[0]?.returnPct ?? 0,
-    bankNiftyReturn: indexSnapshots[1]?.returnPct ?? 0,
-    generatedAt: new Date().toISOString(),
-  };
-
-  const ranked = candidateRows
-    .filter(Boolean)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 6);
-
-  const withSentiment = await Promise.all(ranked.map(async candidate => {
-    const news = await fetchStockNews(candidate.symbol).catch(() => []);
-    const headlines = news.map(n => n.title).filter(Boolean).slice(0, 8);
-    const sentiment = headlines.length ? await getNewsSentiment(headlines).catch(() => 0) : 0;
-    const adjustedScore = candidate.score + Math.round(sentiment * 20);
-    return {
-      ...candidate,
-      sentiment: parseFloat(sentiment.toFixed(2)),
-      sentimentHeadline: sentiment > 0.3 ? 'Positive buzz' : sentiment < -0.3 ? 'Negative catalyst' : 'Neutral news flow',
-      score: adjustedScore,
-      notes: [
-        `Momentum Engine: The asset shifted ${candidate.return5 >= 0 ? '+' : ''}${candidate.return5}% over 5 sessions, securing a ${candidate.return5 >= 2 ? 'dominant aggressive' : candidate.return5 >= 0 ? 'steady supportive' : 'consolidating'} trajectory.`,
-        `Volume Metric: Algorithm detects a ${((candidate.volumeSpike - 1) * 100).toFixed(1)}% deviation in liquidity vs the 10-day average. ${candidate.volumeSpike > 1.1 ? 'Institutions are actively stepping in.' : 'Volume remains standard; prepare for sudden catalyst triggers.'}`,
-        `Technical Bounds: RSI holds at ${candidate.currentRSI.toFixed(1)}/100. ${candidate.currentRSI > 80 ? 'Warning: Asset is highly overbought.' : candidate.currentRSI < 35 ? 'Deep discount identified; high probability of a mean-reversion bounce.' : 'Settled squarely in a highly favorable breakout zone.'}`,
-        `Trend Matrix: Short-term trailing overlays are heavily ${candidate.trend.toUpperCase()} against the live execution price (₹${candidate.currentPrice.toFixed(1)}).`,
-        `Live Sentiment: ${sentiment > 0.3 ? `Positive media cycle detected (+${(sentiment * 100).toFixed(0)}% buzz score).` : sentiment < -0.3 ? `Negative drag detected (${(sentiment * 100).toFixed(0)}%). Strict sizing recommended.` : 'News flow is fundamentally neutral.'}`
-      ],
-    };
-  }));
-
-  const picks = withSentiment
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 5)
-    .map((item, index) => ({
-      ...item,
-      rank: index + 1,
-    }));
-
-  if (picks.length === 0) {
-    throw new Error('Unable to produce intraday recommendations at this time.');
-  }
-
-  const summary = `Intraday pulse is leaning toward ${picks.map(p => p.symbol).join(', ')}. Focus on the highest-scoring setups with positive volume momentum and keep tight risk controls reflecting the calculated trailing stop loss zones.`;
-
-  return { marketPulse, summary, picks };
-}
-
-/**
- * Background Worker to refresh the Intraday Pulse cache for all sectors
- */
-export const refreshIntradayPulseCache = async () => {
-  const sectors = ['any', 'IT', 'Banking', 'Auto', 'Energy'];
-  console.log('--- [IntradayPulse] Warming Sector Caches ---');
-
-  for (const sector of sectors) {
-    try {
-      console.log(`[IntradayPulse] Refreshing cache for: ${sector}`);
-      const data = await fetchIntradayPulseData(sector);
-      pulseCache.set(sector.toLowerCase(), {
-        timestamp: Date.now(),
-        data
-      });
-    } catch (error) {
-      console.error(`[IntradayPulse] Refresh failed for ${sector}:`, error.message);
-    }
-  }
-  console.log('--- [IntradayPulse] Cache Warming Complete ---');
-};
-
-/**
- * Reverse Strategy: Goal-based financial planning with inflation and price-hike projection.
- */
 export const generateReverseStrategy = async (req, res) => {
   const { goalQuery, previousResult } = req.body;
 
@@ -513,7 +240,7 @@ export const generateReverseStrategy = async (req, res) => {
       
       Output Format: Return ONLY valid JSON:
       {
-        "goalTitle": "String",
+        "goalTitle": "String (Do NOT use the word 'Alpha' in the title; use 'Growth Plan' or similar)",
         "timeframeYears": number,
         "currentValuation": number,
         "futureValuation": number,
@@ -605,44 +332,82 @@ export const updateStrategy = async (req, res) => {
   }
 };
 
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+let platformKB = '';
+try {
+    const kbPath = path.join(__dirname, '../data/platform_knowledge.md');
+    platformKB = fs.readFileSync(kbPath, 'utf8');
+} catch (e) {
+    console.warn('[Chat] Knowledge base not found, proceeding without local context.');
+}
+
 export const chatStrategy = async (req, res) => {
-  const { messages } = req.body;
+  const { messages, context, mode } = req.body;
   if (!messages || !messages.length) {
     return res.status(400).json({ error: 'Messages are required.' });
   }
 
   try {
-    const userMessage = messages[messages.length - 1].content;
+    let systemInstruction = '';
+    
+    if (mode === 'support') {
+        systemInstruction = `
+          Persona: EquiSense Platform Support & Financial Assistant.
+          Objective: Assist users with platform-related questions and general financial queries.
+          
+          Knowledge Base (RAG Context):
+          ${platformKB}
+          
+          Guidelines:
+          - Use the Knowledge Base above to answer "How to", "About", and "What is" questions regarding EquiSense.
+          - For general financial questions, provide accurate, professional, and simplified explanations.
+          - If a user asks about a specific stock's current price or outlook, inform them that deep research is available in the "Dashboard" after logging in.
+          - Tone: Friendly, helpful, and institutional.
+          - BRANDING: NEVER use the word "Alpha".
+        `;
+    } else {
+        systemInstruction = `
+          Persona: Senior Quantitative Architect & CIO.
+          Context: You are advising a high-net-worth client on the Indian stock market (NSE/BSE).
+          
+          CRITICAL INSTRUCTION: You have access to real-time tools.
+          - BRANDING: NEVER use the word "Alpha" in your responses or strategy names. Use "Growth Strategy", "Mandate", or "Blueprint".
+          - If the user asks a binary question like "Should I buy?", "Is this a sell?", or "Is it a good time to enter?", you MUST start your response with a clear, bold **EXECUTION VERDICT** based on the current analysis signal.
+          - If the user asks about a specific stock's outlook, price, or potential, you MUST use your tools (get_stock_price, get_stock_fundamentals, get_stock_news_sentiment) to gather a complete data profile.
+          - For every stock outlook request, you MUST produce a high-conviction "Micro Research Note" using this EXACT 5-section structure:
+            1. **Trend & Structure**: Analyze price position relative to 50/200 DMAs, trend direction, and volume dynamics.
+            2. **Momentum Validation**: Evaluate RSI regimes and momentum confirmation vs price action.
+            3. **Fundamental Health**: Use get_stock_fundamentals to analyze Debt-to-Equity, ROE, and Dividend Yield. Mention valuation (P/E) relative to peers.
+            4. **Sentiment & Narrative**: Summarize the current news cycle and sentiment score.
+            5. **Investment Verdict**: Provide a clear stance (FAVORABLE / NEUTRAL / AVOID) for:
+               (a) Swing Trading (1-4 weeks)
+               (b) Medium-term (3-12 months)
+               (c) Long-term Portfolio (1+ years)
+          
+          - ALWAYS append .NS to Indian stock symbols when calling tools.
+          - STYLE: Use extreme 'Telegram-style' conciseness. Max 3-5 bullet points for comparisons.
+          - FORMAT:
+            1. For direct "Should I buy/sell" questions: Start with **EXECUTION VERDICT: [ACTION]** followed by the Micro Research Note.
+            2. For "Analyze [Stock]" or "Outlook for [Stock]", provide a 5-section Micro Research Note.
+            3. For "Why" or "Comparison" (e.g., "Why M&M vs Tata?"), use a concise **Pros/Cons** list or a 3-point bulleted summary.
+            4. For "Invest [Amount]": Gather data on 3-5 stocks, propose a table, and ASK for "CONFIRM MOCK" or "CONFIRM LIVE".
+            5. If user says "Confirm [Mode]", call the 'deploy_investment_strategy' tool.
+          - TONE: Professional, decisive, and data-dense. Bold all key metrics.
+        `;
+    }
 
-    // Fetch fresh context to make the bot "Institutional"
-    const [nifty, bankNifty, trending] = await Promise.all([
-      fetchMomentum('^NSEI'),
-      fetchMomentum('^NSEBANK'),
-      getDynamicSymbols('broad market', 5)
-    ]);
+    // Inject strategy context if provided
+    const history = context 
+      ? [{ role: 'system', content: `CRITICAL CONTEXT: ${context}` }, ...messages]
+      : messages;
 
-    const trendingQuotes = await Promise.all(trending.map(fetchMomentum));
-    const mktContext = [
-      `NIFTY: ${nifty?.returnPct}% | BANKNIFTY: ${bankNifty?.returnPct}%`,
-      ...trendingQuotes.filter(Boolean).map(q => `${q.symbol}: ${q.returnPct}%`)
-    ].join('; ');
-
-    const prompt = `
-      Persona: Senior Quantitative Architect & CIO.
-      Context: You are advising a high-net-worth client on the Indian stock market (NSE/BSE).
-      Live Market Intelligence: ${mktContext}
-      
-      User Message: "${userMessage}"
-      
-      Requirements:
-      - Provide an institutional-grade response grounded in the provided live market context.
-      - Use specific tickers (e.g. RELIANCE.NS, TCS.NS) when discussing sectors.
-      - If they ask for a plan, outline a 3-step quantitative approach (e.g., Asset Mix, Entry Logic, Risk Hedge).
-      - Maintain a professional, decisive, yet cautious tone (Standard SEBI/Institutional disclaimer style).
-      - Be concise but data-dense.
-    `;
-
-    const response = await generateGeminiText(prompt);
+    const response = await runAgenticChat(history, systemInstruction, req.userId);
     res.json({ role: 'assistant', content: response });
   } catch (error) {
     console.error('[Chat Strategy] Error:', error.message);

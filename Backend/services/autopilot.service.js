@@ -157,7 +157,7 @@ async function manageUserWealth(user, mode) {
                 const qty = Math.floor(amountToInvest / price);
 
                 if (qty > 0) {
-                    await executeAutoTrade(user, candidate.symbol, qty, price, 'BUY', `Alpha Generation: ${candidate.reason}`, mode);
+                    await executeAutoTrade(user, candidate.symbol, qty, price, 'BUY', `Growth Strategy: ${candidate.reason}`, mode);
                 }
             }
         }

@@ -87,7 +87,7 @@ export default function HeroSection() {
                     Explore Strategy
                 </Link>
             </div>
-            {/* Market Alpha Metrics Bar */}
+            {/* Institutional Performance Metrics Bar */}
             <div className="mt-20 w-full max-w-5xl px-6">
                 <div className="flex flex-wrap items-center justify-center gap-12 md:gap-24 py-10 border-y border-slate-100 bg-white/30 backdrop-blur-sm rounded-[40px]">
                     <div className="text-center group">
