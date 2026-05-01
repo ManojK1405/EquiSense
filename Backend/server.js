@@ -4,6 +4,12 @@ import cookieParser from 'cookie-parser';
 import dotenv from 'dotenv';
 import { createServer } from 'http';
 import prisma from './utils/prisma.js';
+import dns from 'node:dns';
+
+// Force IPv4 for all network requests (Fixes Yahoo Finance API blocks on Render/Vercel)
+if (dns.setDefaultResultOrder) {
+    dns.setDefaultResultOrder('ipv4first');
+}
 import { Server } from 'socket.io';
 
 const app = express();

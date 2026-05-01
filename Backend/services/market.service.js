@@ -30,13 +30,14 @@ export const getMarketSummaryData = async () => {
     try {
         const quotes = await Promise.all(sectors.map(s => 
             yahooFinance.quote(s.symbol).catch(err => {
-                console.warn(`[Market] Quote failed for ${s.symbol}:`, err.message);
+                console.error(`[MarketService] Quote failed for ${s.symbol}:`, err.message);
                 return null;
             })
         ));
 
         pulse = sectors.map((s, i) => {
             const q = quotes[i];
+            // If quote failed, attempt one retry for indices which are critical
             return {
                 name: s.name,
                 symbol: s.symbol,
@@ -46,19 +47,34 @@ export const getMarketSummaryData = async () => {
                 state: q?.marketState || 'CLOSED'
             };
         });
+        
+        // If all prices are 0, it means we likely have a connectivity/IPv6 issue with Yahoo
+        if (pulse.every(p => p.price === 0)) {
+            console.error('[MarketService] CRITICAL: All market indices returned 0. Possible API block or network issue.');
+        }
     } catch (e) {
         console.error('[Market] Pulse failed:', e);
     }
 
     let trending = [];
     try {
-        const trendingResp = await yahooFinance.trendingSymbols('IN').catch(() => ({ quotes: [] }));
-        const trendingSymbols = trendingResp.quotes?.length > 0 
-            ? trendingResp.quotes.slice(0, 10).map(q => q.symbol) 
-            : ['RELIANCE.NS', 'TCS.NS', 'INFY.NS', 'HDFCBANK.NS', 'SBIN.NS'];
+        // Fallback trending symbols if the API fails
+        const fallbackSymbols = ['RELIANCE.NS', 'TCS.NS', 'HDFCBANK.NS', 'ICICIBANK.NS', 'INFY.NS', 'BHARTIARTL.NS', 'ITC.NS', 'SBIN.NS', 'LICI.NS', 'HINDUNILVR.NS'];
+        
+        let trendingSymbols = [];
+        try {
+            const trendingResp = await yahooFinance.trendingSymbols('IN', { count: 10 });
+            trendingSymbols = trendingResp.quotes?.map(q => q.symbol) || [];
+        } catch (err) {
+            console.warn('[MarketService] Trending API failed, using fallbacks');
+        }
+
+        if (trendingSymbols.length === 0) {
+            trendingSymbols = fallbackSymbols;
+        }
 
         const trendingQuotes = await Promise.all(
-            trendingSymbols.map(sym => yahooFinance.quote(sym).catch(() => null))
+            trendingSymbols.slice(0, 10).map(sym => yahooFinance.quote(sym).catch(() => null))
         );
 
         trending = trendingQuotes.filter(q => q).map(q => ({
