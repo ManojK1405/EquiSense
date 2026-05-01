@@ -81,13 +81,16 @@ export const getPortfolio = async (req, res) => {
         try {
             const [holdingsRaw, positionsRaw, marginsRaw] = await Promise.all([
                axios.get('https://api.kite.trade/portfolio/holdings', {
-                 headers: { 'X-Kite-Version': '3', 'Authorization': `token ${user.brokerAccess}` }
+                 headers: { 'X-Kite-Version': '3', 'Authorization': `token ${user.brokerAccess}` },
+                 httpsAgent: ipv4Agent
                }),
                axios.get('https://api.kite.trade/portfolio/positions', {
-                 headers: { 'X-Kite-Version': '3', 'Authorization': `token ${user.brokerAccess}` }
+                 headers: { 'X-Kite-Version': '3', 'Authorization': `token ${user.brokerAccess}` },
+                 httpsAgent: ipv4Agent
                }),
                axios.get('https://api.kite.trade/user/margins', {
-                 headers: { 'X-Kite-Version': '3', 'Authorization': `token ${user.brokerAccess}` }
+                 headers: { 'X-Kite-Version': '3', 'Authorization': `token ${user.brokerAccess}` },
+                 httpsAgent: ipv4Agent
                })
             ]);
 
@@ -630,7 +633,8 @@ export const syncBroker = async (req, res) => {
             params.append('checksum', checksum);
 
             const sessionResp = await axios.post('https://api.kite.trade/session/token', params, {
-                headers: { 'X-Kite-Version': '3', 'Content-Type': 'application/x-www-form-urlencoded' }
+                headers: { 'X-Kite-Version': '3', 'Content-Type': 'application/x-www-form-urlencoded' },
+                httpsAgent: ipv4Agent
             });
 
             // Store the Access Token (format: apiKey:accessToken)
@@ -680,10 +684,12 @@ export const syncBroker = async (req, res) => {
 
         const [holdingsRaw, positionsRaw] = await Promise.all([
            axios.get('https://api.kite.trade/portfolio/holdings', {
-             headers: { 'X-Kite-Version': '3', 'Authorization': `token ${accessToken}` }
+             headers: { 'X-Kite-Version': '3', 'Authorization': `token ${accessToken}` },
+             httpsAgent: ipv4Agent
            }),
            axios.get('https://api.kite.trade/portfolio/positions', {
-             headers: { 'X-Kite-Version': '3', 'Authorization': `token ${accessToken}` }
+             headers: { 'X-Kite-Version': '3', 'Authorization': `token ${accessToken}` },
+             httpsAgent: ipv4Agent
            })
         ]);
 
