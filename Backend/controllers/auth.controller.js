@@ -113,7 +113,7 @@ export const getMe = async (req, res) => {
   try {
     const user = await prisma.user.findUnique({
       where: { id: req.userId },
-      select: { id: true, email: true, name: true, avatar: true, brokerType: true, brokerApiKey: true, brokerApiSecret: true, brokerAccess: true, brokerAccessExpiry: true, mockBalance: true, autoPilotMock: true, autoPilotLive: true, pilotLimitMock: true, pilotLimitLive: true }
+      select: { id: true, email: true, name: true, avatar: true, googleId: true, brokerType: true, brokerApiKey: true, brokerApiSecret: true, brokerAccess: true, brokerAccessExpiry: true, mockBalance: true, autoPilotMock: true, autoPilotLive: true, pilotLimitMock: true, pilotLimitLive: true }
     });
     const userPayload = {
       ...user,
@@ -144,6 +144,9 @@ export const updateProfile = async (req, res) => {
     if (email) updateData.email = email;
 
     if (newPassword) {
+      if (user.googleId) {
+        return res.status(400).json({ message: 'Password changes are disabled for Google-authenticated accounts.' });
+      }
       if (!currentPassword) {
         return res.status(400).json({ message: 'Current password is required to set a new one.' });
       }

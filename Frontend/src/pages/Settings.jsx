@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
     User, Shield, Briefcase, Zap, AlertCircle, 
     CheckCircle2, X, ChevronRight, ArrowRight,
-    ShieldAlert, Trash2
+    ShieldAlert, Trash2, Eye, EyeOff
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'react-hot-toast';
@@ -147,6 +147,12 @@ const Settings = () => {
         confirmPassword: ''
     });
 
+    const [showPasswords, setShowPasswords] = useState({
+        current: false,
+        new: false,
+        confirm: false
+    });
+
     const handleUpdateProfile = async (e) => {
         e.preventDefault();
         if (profileData.newPassword && profileData.newPassword !== profileData.confirmPassword) {
@@ -235,45 +241,88 @@ const Settings = () => {
                                             </div>
 
                                             <div className="pt-8 border-t border-slate-50 space-y-8">
-                                                <div className="flex items-center gap-3 mb-2">
-                                                    <Shield className="w-4 h-4 text-rose-500" />
-                                                    <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest italic">Security Clearance</h3>
+                                                <div className="flex items-center justify-between mb-2">
+                                                    <div className="flex items-center gap-3">
+                                                        <Shield className="w-4 h-4 text-rose-500" />
+                                                        <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest italic">Security Clearance</h3>
+                                                    </div>
+                                                    {user?.googleId && (
+                                                        <span className="px-3 py-1 bg-blue-50 text-blue-600 rounded-full text-[8px] font-black uppercase tracking-widest">
+                                                            Managed by Google
+                                                        </span>
+                                                    )}
                                                 </div>
 
                                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                                     <div className="space-y-2">
                                                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Current Passcode</label>
-                                                        <input 
-                                                            type="password" 
-                                                            autoComplete="current-password"
-                                                            className="w-full p-5 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-black focus:outline-none focus:border-rose-600/30 transition-all" 
-                                                            value={profileData.currentPassword}
-                                                            onChange={(e) => setProfileData({...profileData, currentPassword: e.target.value})}
-                                                            placeholder="••••••••"
-                                                        />
+                                                        <div className="relative">
+                                                            <input 
+                                                                type={showPasswords.current ? "text" : "password"} 
+                                                                autoComplete="current-password"
+                                                                disabled={!!user?.googleId}
+                                                                className={`w-full p-5 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-black focus:outline-none focus:border-rose-600/30 transition-all ${user?.googleId ? 'opacity-50 cursor-not-allowed' : ''}`} 
+                                                                value={profileData.currentPassword}
+                                                                onChange={(e) => setProfileData({...profileData, currentPassword: e.target.value})}
+                                                                placeholder={user?.googleId ? "N/A" : "••••••••"}
+                                                            />
+                                                            {!user?.googleId && (
+                                                                <button 
+                                                                    type="button"
+                                                                    onClick={() => setShowPasswords({...showPasswords, current: !showPasswords.current})}
+                                                                    className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                                                                >
+                                                                    {showPasswords.current ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                                                </button>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                     <div className="space-y-2">
                                                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">New Passcode</label>
-                                                        <input 
-                                                            type="password" 
-                                                            autoComplete="new-password"
-                                                            className="w-full p-5 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-black focus:outline-none focus:border-rose-600/30 transition-all" 
-                                                            value={profileData.newPassword}
-                                                            onChange={(e) => setProfileData({...profileData, newPassword: e.target.value})}
-                                                            placeholder="••••••••"
-                                                        />
+                                                        <div className="relative">
+                                                            <input 
+                                                                type={showPasswords.new ? "text" : "password"} 
+                                                                autoComplete="new-password"
+                                                                disabled={!!user?.googleId}
+                                                                className={`w-full p-5 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-black focus:outline-none focus:border-rose-600/30 transition-all ${user?.googleId ? 'opacity-50 cursor-not-allowed' : ''}`} 
+                                                                value={profileData.newPassword}
+                                                                onChange={(e) => setProfileData({...profileData, newPassword: e.target.value})}
+                                                                placeholder={user?.googleId ? "N/A" : "••••••••"}
+                                                            />
+                                                            {!user?.googleId && (
+                                                                <button 
+                                                                    type="button"
+                                                                    onClick={() => setShowPasswords({...showPasswords, new: !showPasswords.new})}
+                                                                    className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                                                                >
+                                                                    {showPasswords.new ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                                                </button>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                 </div>
                                                 
                                                 <div className="md:w-1/2 space-y-2">
                                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Confirm New Passcode</label>
-                                                    <input 
-                                                        type="password" 
-                                                        className="w-full p-5 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-black focus:outline-none focus:border-rose-600/30 transition-all" 
-                                                        value={profileData.confirmPassword}
-                                                        onChange={(e) => setProfileData({...profileData, confirmPassword: e.target.value})}
-                                                        placeholder="••••••••"
-                                                    />
+                                                    <div className="relative">
+                                                        <input 
+                                                            type={showPasswords.confirm ? "text" : "password"} 
+                                                            disabled={!!user?.googleId}
+                                                            className={`w-full p-5 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-black focus:outline-none focus:border-rose-600/30 transition-all ${user?.googleId ? 'opacity-50 cursor-not-allowed' : ''}`} 
+                                                            value={profileData.confirmPassword}
+                                                            onChange={(e) => setProfileData({...profileData, confirmPassword: e.target.value})}
+                                                            placeholder={user?.googleId ? "N/A" : "••••••••"}
+                                                        />
+                                                        {!user?.googleId && (
+                                                            <button 
+                                                                type="button"
+                                                                onClick={() => setShowPasswords({...showPasswords, confirm: !showPasswords.confirm})}
+                                                                className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                                                            >
+                                                                {showPasswords.confirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                                            </button>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             </div>
 

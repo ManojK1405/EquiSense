@@ -41,7 +41,7 @@ import cron from 'node-cron';
 // Middlewares
 const allowedOrigins = [
   'http://localhost:5173',
-  'https://equisense.shop',
+  'https://www.equisense.shop',
   process.env.FRONTEND_URL
 ].filter(Boolean);
 
