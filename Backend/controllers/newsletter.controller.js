@@ -41,6 +41,17 @@ export const unsubscribe = async (req, res) => {
     }
 };
 
+export const checkStatus = async (req, res) => {
+    const { email } = req.query;
+    if (!email) return res.status(400).json({ message: 'Email is required' });
+    try {
+        const sub = await prisma.newsletterSubscription.findUnique({ where: { email } });
+        res.status(200).json({ subscribed: sub ? sub.isActive : false });
+    } catch (e) {
+        res.status(500).json({ message: e.message });
+    }
+};
+
 export const sendNewsletter = async (req, res) => {
     try {
         // 1. Fetch data for the newsletter

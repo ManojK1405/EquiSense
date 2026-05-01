@@ -1,5 +1,5 @@
 import YahooFinance from 'yahoo-finance2';
-import { fetchStockNews } from '../utils/news.js';
+import { fetchStockNews, fetchMarketNews } from '../utils/news.js';
 
 const yahooFinance = new YahooFinance({ 
     suppressNotices: ['yahooSurvey'],
@@ -74,20 +74,8 @@ export const getMarketSummaryData = async () => {
 
     let topNews = [];
     try {
-        const newsSymbol = trending.length > 0 ? trending[0].symbol : 'RELIANCE.NS';
-        const newsName = trending.length > 0 ? trending[0].name : 'Reliance Industries';
-        const rawNews = await fetchStockNews(newsSymbol, newsName, 'Market');
-        
-        const financialKeywords = [
-            'stock', 'market', 'share', 'profit', 'earnings', 'revenue', 'invest', 'finance', 
-            'economic', 'trade', 'nifty', 'sensex', 'fed', 'rbi', 'yield', 'dividend', 
-            'ipo', 'portfolio', 'asset', 'bank', 'capital', 'index', 'nasdaq', 'bull', 'bear'
-        ];
-
-        topNews = rawNews.filter(n => {
-            const text = (n.title + ' ' + (n.description || '')).toLowerCase();
-            return financialKeywords.some(kw => text.includes(kw));
-        }).slice(0, 5).map(n => ({
+        const rawNews = await fetchMarketNews();
+        topNews = rawNews.slice(0, 5).map(n => ({
             title: n.title,
             link: n.url,
             publisher: n.source,

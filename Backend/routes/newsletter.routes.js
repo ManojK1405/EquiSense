@@ -5,6 +5,7 @@ import { auth } from '../middlewares/auth.middleware.js';
 
 router.post('/subscribe', newsletterController.subscribe);
 router.post('/unsubscribe', newsletterController.unsubscribe);
+router.get('/status', newsletterController.checkStatus);
 
 // Admin only: Trigger newsletter blast
 router.post('/send', auth, newsletterController.sendNewsletter);

@@ -5,10 +5,12 @@ import { OAuth2Client } from 'google-auth-library';
 
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
+const isProd = process.env.NODE_ENV === 'production';
+
 const cookieOptions = {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
+    secure: isProd, // true on production (HTTPS), false on localhost (HTTP)
+    sameSite: isProd ? 'none' : 'lax', // 'none' for cross-site prod, 'lax' for same-site local
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
 };
 
@@ -99,8 +101,11 @@ export const googleLogin = async (req, res) => {
     res.cookie('token', token, cookieOptions);
     res.status(200).json({ user: { id: user.id, email: user.email, name: user.name, avatar: user.avatar, brokerType: user.brokerType, brokerAccessExpiry: user.brokerAccessExpiry, mockBalance: user.mockBalance, autoPilotMock: user.autoPilotMock, autoPilotLive: user.autoPilotLive, pilotLimitMock: user.pilotLimitMock, pilotLimitLive: user.pilotLimitLive }, token });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Google authentication failed' });
+    console.error('[Google Login Error]:', error.message);
+    res.status(500).json({ 
+        message: 'Google authentication failed', 
+        error: process.env.NODE_ENV === 'development' ? error.message : 'Invalid token or configuration' 
+    });
   }
 };
 

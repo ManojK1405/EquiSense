@@ -299,9 +299,9 @@ const Dashboard = () => {
                                             ))}
                                         </div>
                                         <div className="px-8 pb-8">
-                                            <button className="w-full py-4 rounded-2xl bg-slate-900 text-white hover:bg-orange-600 transition-all font-black text-[10px] uppercase tracking-widest">
+                                            <Link to="/products/news-terminal" className="w-full py-4 rounded-2xl bg-slate-900 text-white hover:bg-orange-600 transition-all font-black text-[10px] uppercase tracking-widest flex items-center justify-center">
                                                 Launch Comprehensive News Terminal
-                                            </button>
+                                            </Link>
                                         </div>
                                     </motion.div>
                                 )}
@@ -548,7 +548,7 @@ const Dashboard = () => {
                                                      <div className="grid grid-cols-2 gap-6">
                                                          <div className="p-6 rounded-[24px] bg-white border border-slate-100 shadow-sm transition-all hover:shadow-md">
                                                              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 text-center">Reward Ratio</p>
-                                                             <p className="text-xl font-black text-slate-900 text-center tracking-tighter italic">2.4x</p>
+                                                             <p className="text-xl font-black text-slate-900 text-center tracking-tighter italic">{analysis.rewardRatio || '2.0'}x</p>
                                                          </div>
                                                          <div className="p-6 rounded-[24px] bg-white border border-slate-100 shadow-sm transition-all hover:shadow-md">
                                                              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 text-center">Confidence</p>

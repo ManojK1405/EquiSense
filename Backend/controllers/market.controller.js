@@ -1,5 +1,6 @@
 import YahooFinance from 'yahoo-finance2';
 import { getMarketSummaryData } from '../services/market.service.js';
+import { fetchMarketNews } from '../utils/news.js';
 
 const yahooFinance = new YahooFinance({ 
     suppressNotices: ['yahooSurvey'],
@@ -13,6 +14,16 @@ export const getMarketSummary = async (req, res) => {
     } catch (error) {
         console.error('Market Controller Error:', error);
         res.status(500).json({ error: 'Failed to fetch market summary', pulse: [], trending: [], topNews: [] });
+    }
+};
+
+export const getMarketNews = async (req, res) => {
+    try {
+        const news = await fetchMarketNews();
+        res.json(news);
+    } catch (error) {
+        console.error('Market News Controller Error:', error);
+        res.status(500).json({ error: 'Failed to fetch market news' });
     }
 };
 

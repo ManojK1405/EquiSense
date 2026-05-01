@@ -41,7 +41,6 @@ import cron from 'node-cron';
 // Middlewares
 const allowedOrigins = [
   'http://localhost:5173',
-  'https://equisense.vercel.app',
   'https://equisense.shop',
   process.env.FRONTEND_URL
 ].filter(Boolean);
@@ -51,6 +50,7 @@ app.use(cors({
     if (!origin || allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
+      console.warn(`[CORS] Origin rejected: ${origin}`);
       callback(new Error('Not allowed by CORS'));
     }
   },

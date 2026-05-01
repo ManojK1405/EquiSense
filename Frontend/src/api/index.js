@@ -1,14 +1,24 @@
 import axios from 'axios';
 
-const isProduction = window.location.hostname === 'equisense.vercel.app';
-const API_URL = import.meta.env.VITE_BACKEND_URL 
-    ? `${import.meta.env.VITE_BACKEND_URL}/api` 
-    : (isProduction 
-        ? 'https://your-backend-production-url.com/api' // PLACEHOLDER: User must set VITE_BACKEND_URL in Vercel
-        : 'http://localhost:5001/api');
+export const getBaseURL = () => {
+  if (import.meta.env.VITE_BACKEND_URL) return `${import.meta.env.VITE_BACKEND_URL}/api`;
+  if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
+  
+  const isProduction = window.location.hostname.includes('equisense.vercel.app') || 
+                       window.location.hostname.includes('equisense.shop');
+  
+  // If we are on production domains but backend URL is missing, 
+  // assume it's on Render based on the user's project setup
+  if (isProduction) return 'https://equisense.onrender.com/api';
+  
+  return 'http://localhost:5001/api';
+};
+
+const API_URL = getBaseURL();
 
 const api = axios.create({
   baseURL: API_URL,
+  withCredentials: true,
 });
 
 api.interceptors.request.use((config) => {

@@ -307,20 +307,20 @@ const AIStrategist = () => {
                                                     </div>
                                                     <div className="flex gap-2 bg-slate-50 p-1.5 rounded-2xl border border-slate-100">
                                                         {[
-                                                            { id: 'conservative', color: 'emerald' },
-                                                            { id: 'moderate', color: 'amber' },
-                                                            { id: 'aggressive', color: 'rose' }
+                                                            { id: 'conservative', label: 'Conservative', activeClass: 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/20' },
+                                                            { id: 'moderate', label: 'Moderate', activeClass: 'bg-orange-500 text-white shadow-lg shadow-orange-900/20' },
+                                                            { id: 'aggressive', label: 'Aggressive', activeClass: 'bg-rose-600 text-white shadow-lg shadow-rose-900/20' }
                                                         ].map((r) => (
                                                             <button
                                                                 key={r.id}
                                                                 onClick={() => setMandate({ ...mandate, riskLevel: r.id })}
                                                                 className={`flex-1 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${
                                                                     mandate.riskLevel === r.id 
-                                                                    ? `bg-${r.color}-500 text-white shadow-lg shadow-${r.color}-500/20` 
+                                                                    ? r.activeClass
                                                                     : 'text-slate-400 hover:text-slate-600 hover:bg-white/50'
                                                                 }`}
                                                             >
-                                                                {r.id}
+                                                                {r.label}
                                                             </button>
                                                         ))}
                                                     </div>

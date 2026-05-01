@@ -8,6 +8,7 @@ import Home from "./pages/Home";
 import Dashboard from "./pages/Dashboard";
 import Portfolio from "./pages/Portfolio";
 import IntradayPulse from "./pages/IntradayPulse";
+import NewsTerminal from "./pages/NewsTerminal";
 import AIStrategist from "./pages/AIStrategist";
 import ReverseStrategist from "./pages/ReverseStrategist";
 import Backtester from "./pages/Backtester";
@@ -46,6 +47,7 @@ function AnimatedRoutes() {
                     <Route path="/" element={<Home />} />
                     <Route path="/products/dashboard" element={<Dashboard />} />
                     <Route path="/products/portfolio" element={<Portfolio />} />
+                    <Route path="/products/news-terminal" element={<NewsTerminal />} />
                     <Route path="/products/intraday-pulse" element={<IntradayPulse />} />
                     <Route path="/products/ai-strategist" element={<AIStrategist />} />
                     <Route path="/products/goal-backcaster" element={<ReverseStrategist />} />

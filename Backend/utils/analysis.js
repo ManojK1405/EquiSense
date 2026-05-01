@@ -296,21 +296,28 @@ export const analyzeStock = (history, sentiment = 0) => {
   const isBearish = signal.includes('SELL');
   const entry = lastPrice;
   
-  // High-fidelity level calculation
+  // High-fidelity level calculation (Institutional Grade)
   let target, sl;
+  const volBuffer = currentATR > 0 ? currentATR * 1.5 : entry * 0.03;
+
   if (isBearish) {
     // For Sell/Short: Target below, SL above
-    target = pivotData.s1 < entry * 0.99 ? pivotData.s1 : entry * 0.95;
-    sl = pivotData.r1 > entry * 1.01 ? pivotData.r1 : entry * 1.03;
+    target = pivotData.s1 < entry * 0.99 ? pivotData.s1 : entry - volBuffer;
+    sl = pivotData.r1 > entry * 1.01 ? pivotData.r1 : entry + volBuffer;
   } else {
     // For Buy/Long: Target above, SL below
-    target = pivotData.r1 > entry * 1.01 ? pivotData.r1 : entry * 1.05;
-    sl = pivotData.s1 < entry * 0.99 ? pivotData.s1 : entry * 0.97;
+    target = pivotData.r1 > entry * 1.01 ? pivotData.r1 : entry + volBuffer;
+    sl = pivotData.s1 < entry * 0.99 ? pivotData.s1 : entry - volBuffer;
   }
 
   // Final safety checks to ensure no zeros or nulls
   const finalTarget = parseFloat((target || (isBearish ? entry * 0.95 : entry * 1.05)).toFixed(2));
   const finalSl = parseFloat((sl || (isBearish ? entry * 1.03 : entry * 0.97)).toFixed(2));
+
+  // Calculate Reward Ratio: (Target - Entry) / (Entry - StopLoss)
+  const risk = Math.abs(entry - finalSl);
+  const reward = Math.abs(finalTarget - entry);
+  const rewardRatio = risk > 0 ? parseFloat((reward / risk).toFixed(1)) : 2.0;
 
   return {
     symbol: '', 
@@ -321,7 +328,8 @@ export const analyzeStock = (history, sentiment = 0) => {
     rsi: currentRSI,
     buyLevel: entry, 
     sellLevel: finalTarget, 
-    stopLoss: finalSl,  
+    stopLoss: finalSl,
+    rewardRatio,
     duration: '2 - 6 Weeks (Swing)',
     reasoning,
     indicators: {

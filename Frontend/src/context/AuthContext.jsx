@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../api';
 import toast from 'react-hot-toast';
 
 const AuthContext = createContext();
@@ -11,21 +11,22 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [showAuthModal, setShowAuthModal] = useState(false);
 
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
-  
-  // Configure axios defaults
-  axios.defaults.withCredentials = true;
-
   useEffect(() => {
-    fetchUser();
+    const token = localStorage.getItem('token');
+    if (token) {
+        fetchUser();
+    } else {
+        setLoading(false);
+    }
   }, []);
 
   const fetchUser = async () => {
     try {
-      const response = await axios.get(`${API_URL}/auth/me`);
+      const response = await api.get('/auth/me');
       setUser(response.data);
     } catch (error) {
       console.log('No active session found');
+      localStorage.removeItem('token');
       setUser(null);
     } finally {
       setLoading(false);
@@ -33,33 +34,40 @@ export const AuthProvider = ({ children }) => {
   };
 
   const login = async (email, password) => {
-    const response = await axios.post(`${API_URL}/auth/login`, { email, password });
-    setUser(response.data.user);
+    const response = await api.post('/auth/login', { email, password });
+    const { user, token } = response.data;
+    localStorage.setItem('token', token);
+    setUser(user);
     setShowAuthModal(false);
-    toast.success(`Welcome back, ${response.data.user.name}!`);
+    toast.success(`Welcome back, ${user.name}!`);
   };
 
   const signup = async (name, email, password) => {
-    const response = await axios.post(`${API_URL}/auth/signup`, { name, email, password });
-    setUser(response.data.user);
+    const response = await api.post('/auth/signup', { name, email, password });
+    const { user, token } = response.data;
+    localStorage.setItem('token', token);
+    setUser(user);
     setShowAuthModal(false);
-    toast.success(`Welcome to EquiTrade, ${response.data.user.name}!`);
+    toast.success(`Welcome to EquiTrade, ${user.name}!`);
   };
 
   const googleLogin = async (tokenId) => {
-    const response = await axios.post(`${API_URL}/auth/google`, { tokenId });
-    setUser(response.data.user);
+    const response = await api.post('/auth/google', { tokenId });
+    const { user, token } = response.data;
+    localStorage.setItem('token', token);
+    setUser(user);
     setShowAuthModal(false);
-    toast.success(`Welcome back, ${response.data.user.name}!`);
+    toast.success(`Welcome back, ${user.name}!`);
   };
 
   const logout = async () => {
     try {
-        await axios.post(`${API_URL}/auth/logout`);
+        await api.post('/auth/logout');
         toast.success('Successfully logged out.');
     } catch (e) {
         console.error('Logout error', e);
     } finally {
+        localStorage.removeItem('token');
         setUser(null);
     }
   };

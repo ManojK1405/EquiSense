@@ -3,6 +3,75 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
+export const fetchMarketNews = async () => {
+    const apiKey = process.env.NEWS_API_KEY;
+    
+    // NewsAPI Circuit Breaker
+    if (!global.newsApiBackoff) global.newsApiBackoff = 0;
+    const isBackoffActive = Date.now() < global.newsApiBackoff;
+
+    const articles = [];
+
+    if (apiKey && !isBackoffActive) {
+        try {
+            const marketQuery = `(Nifty 50 OR Sensex OR "Indian stock market" OR "RBI" OR "NSE India" OR "GIFT Nifty") AND (stock OR market OR economy OR finance)`;
+            const marketResp = await axios.get(`https://newsapi.org/v2/everything`, {
+                params: {
+                    q: marketQuery,
+                    searchIn: 'title,description',
+                    sortBy: 'publishedAt',
+                    language: 'en',
+                    pageSize: 30,
+                    apiKey: apiKey
+                }
+            });
+            articles.push(...(marketResp.data.articles || []));
+        } catch (e) {
+            if (e.response?.status === 429) {
+                global.newsApiBackoff = Date.now() + 15 * 60 * 1000;
+            }
+            console.error("Market News Fetch Error:", e.message);
+        }
+    }
+
+    // Also get some from Yahoo for global context
+    try {
+        const YahooFinance = (await import('yahoo-finance2')).default;
+        const yf = new YahooFinance({ suppressNotices: ['yahooSurvey'], validation: { logErrors: false } });
+        const yfResult = await yf.search('Indian Stock Market');
+        if (yfResult.news) {
+            articles.push(...yfResult.news.map(a => ({
+                title: a.title,
+                description: '',
+                url: a.link,
+                source: { name: a.publisher || 'Yahoo Finance' },
+                publishedAt: a.providerPublishTime ? new Date(a.providerPublishTime * 1000).toISOString() : new Date().toISOString()
+            })));
+        }
+    } catch (e) {
+        console.error("Yahoo Global News Error:", e.message);
+    }
+
+    // Deduplicate and format
+    const seenTitles = new Set();
+    return articles
+        .filter(a => {
+            if (!a.title || a.title.length < 10) return false;
+            const partial = a.title.toLowerCase().substring(0, 40);
+            if (seenTitles.has(partial)) return false;
+            seenTitles.add(partial);
+            return true;
+        })
+        .map(a => ({
+            title: a.title,
+            description: a.description || '',
+            url: a.url,
+            source: a.source?.name || 'Financial News',
+            publishedAt: a.publishedAt
+        }))
+        .sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
+};
+
 export const fetchStockNews = async (symbol, name, sector) => {
     const apiKey = process.env.NEWS_API_KEY;
     const cleanSymbol = symbol.split('.')[0];
@@ -73,8 +142,6 @@ export const fetchStockNews = async (symbol, name, sector) => {
                 }
             }
         }
-    } else if (isBackoffActive) {
-        // Silently skip or log once
     }
 
     // 2. Fetch from Yahoo Finance (Search endpoint)

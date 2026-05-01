@@ -140,13 +140,13 @@ const ReverseStrategist = () => {
                             {/* Feature chips */}
                             <div className="grid grid-cols-2 gap-3">
                                 {[
-                                    { icon: Target,     label: 'Goal Modelling',          color: 'emerald' },
-                                    { icon: Calculator, label: 'SIP Calculator',           color: 'teal' },
-                                    { icon: ShieldCheck,label: 'Inflation Adjusted',       color: 'cyan' },
-                                    { icon: PieChart,   label: 'Asset Allocation',         color: 'indigo' },
-                                ].map(({ icon: Icon, label, color }) => (
+                                    { icon: Target,     label: 'Goal Modelling',          colorClass: 'bg-emerald-50 text-emerald-600' },
+                                    { icon: Calculator, label: 'SIP Calculator',           colorClass: 'bg-teal-50 text-teal-600' },
+                                    { icon: ShieldCheck,label: 'Inflation Adjusted',       colorClass: 'bg-cyan-50 text-cyan-600' },
+                                    { icon: PieChart,   label: 'Asset Allocation',         colorClass: 'bg-indigo-50 text-indigo-600' },
+                                ].map(({ icon: Icon, label, colorClass }) => (
                                     <div key={label} className="flex items-center gap-3 p-4 bg-white rounded-2xl border border-slate-100 shadow-sm">
-                                        <div className={`w-8 h-8 rounded-xl bg-${color}-50 text-${color}-600 flex items-center justify-center shrink-0`}>
+                                        <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${colorClass}`}>
                                             <Icon className="w-4 h-4" />
                                         </div>
                                         <span className="text-[11px] font-black text-slate-700 leading-tight">{label}</span>
