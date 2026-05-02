@@ -68,9 +68,8 @@ const Settings = () => {
                         apiKey: 'PERSISTED_IN_DB'
                     });
                     
-                    if (res.data.message?.includes('expired')) {
-                        console.log('[Settings] Session expired, state will reflect this on next refresh.');
-                    }
+                    // Force a refresh of the local user state to reflect the verified connection
+                    refreshUser();
                 } catch (err) {
                     console.error('[Settings] Session validation failed', err);
                 }

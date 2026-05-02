@@ -7,42 +7,49 @@ export default function OurTestimonialSection() {
     const data = [
         {
             review: "EquiSense transformed my trading from reactive to proactive. The sentiment engine is frighteningly accurate.",
-            name: "Arjun Mehta",
+            name: "Aditya Wagh",
             about: "Intraday Scalper",
             rating: 5,
             image: "https://images.unsplash.com/photo-1633332755192-727a05c4013d?q=80&w=200",
         },
         {
             review: "I used to spend hours on spreadsheets. Now, the Goal Backcaster does my 10-year goal planning in seconds.",
-            name: "Priya Sharma",
+            name: "Mahesh Dongre",
             about: "Long-term Investor",
             rating: 5,
             image: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=200",
         },
         {
             review: "The institutional-grade data at this price point is insane. Finally, a tool that respects the retail investor.",
-            name: "Siddharth Goel",
+            name: "Avdhoot Pimparkar",
             about: "Portfolio Manager",
             rating: 5,
             image: "https://images.unsplash.com/photo-1527980965255-d3b416303d12?w=200&auto=format&fit=crop&q=60",
         },
         {
             review: "Finally, an AI that doesn't just hallucinate but actually backs its claims with technical chart patterns.",
-            name: "Ananya Iyer",
+            name: "Jay Shinde",
             about: "Quant Enthusiast",
             rating: 5,
             image: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?q=80&w=100&h=100&auto=format&fit=crop",
         },
         {
             review: "Renaming to Goal Backcaster really highlights its technical depth. Loving the new branding and accuracy!",
-            name: "Rahul V.",
+            name: "Soham More",
             about: "Wealth Manager",
             rating: 5,
             image: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?q=80&w=200",
         },
         {
             review: "The Intraday Pulse has become my go-to for Nifty scalp signals. Extremely reliable momentum tracking.",
-            name: "Karan Singh",
+            name: "Mohit Malve",
+            about: "Day Trader",
+            rating: 5,
+            image: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=200",
+        },
+        {
+            review: "The sentiment analysis on EquiSense is uncanny. It's like having a team of analysts working 24/7.",
+            name: " Atharv Doiphode ",
             about: "Day Trader",
             rating: 5,
             image: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=200",
@@ -81,11 +88,12 @@ export default function OurTestimonialSection() {
                 <div className="absolute right-0 top-0 bottom-0 w-40 bg-gradient-to-l from-slate-50 via-slate-50/90 to-transparent z-10 hidden md:block" />
 
                 {/* Row 1: Moving Left */}
-                <div className="flex">
-                    <motion.div 
-                        className='flex gap-6'
+                <div className="flex overflow-hidden">
+                    <motion.div
+                        className='flex gap-6 min-w-max'
+                        initial={{ x: 0 }}
                         animate={{
-                            x: [0, '-33.33%'],
+                            x: ["0%", "-33.33%"],
                         }}
                         transition={{
                             x: {
@@ -93,20 +101,21 @@ export default function OurTestimonialSection() {
                                 repeatType: "loop",
                                 duration: 25,
                                 ease: "linear",
+                                repeatDelay: 0
                             },
                         }}
-                        style={{ width: 'fit-content' }}
                     >
                         {row1.map((item, index) => <TestimonialCard key={index} item={item} />)}
                     </motion.div>
                 </div>
 
                 {/* Row 2: Moving Right */}
-                <div className="flex">
-                    <motion.div 
-                        className='flex gap-6'
+                <div className="flex overflow-hidden">
+                    <motion.div
+                        className='flex gap-6 min-w-max'
+                        initial={{ x: "-33.33%" }}
                         animate={{
-                            x: ['-33.33%', 0],
+                            x: ["-33.33%", "0%"],
                         }}
                         transition={{
                             x: {
@@ -114,9 +123,9 @@ export default function OurTestimonialSection() {
                                 repeatType: "loop",
                                 duration: 30,
                                 ease: "linear",
+                                repeatDelay: 0
                             },
                         }}
-                        style={{ width: 'fit-content' }}
                     >
                         {row2.map((item, index) => <TestimonialCard key={index} item={item} />)}
                     </motion.div>

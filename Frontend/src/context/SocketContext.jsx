@@ -11,7 +11,17 @@ export const SocketProvider = ({ children }) => {
     const [socket, setSocket] = useState(null);
 
     useEffect(() => {
-        const socketUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5001';
+        const getSocketURL = () => {
+            if (import.meta.env.VITE_BACKEND_URL) return import.meta.env.VITE_BACKEND_URL;
+            
+            const isProduction = window.location.hostname.includes('equisense.vercel.app') || 
+                                 window.location.hostname.includes('equisense.shop');
+            
+            if (isProduction) return 'https://equisense.onrender.com';
+            return 'http://localhost:5001';
+        };
+
+        const socketUrl = getSocketURL();
         const newSocket = io(socketUrl, {
             withCredentials: true,
             transports: ['websocket', 'polling']

@@ -13,6 +13,14 @@ const yahooFinance = new YahooFinance({
     validation: { logErrors: false }
 });
 
+// Hard-bind the fetcher to use IPv4 where possible
+if (yahooFinance._fetch) {
+    const originalFetch = yahooFinance._fetch;
+    yahooFinance._fetch = async (url, options) => {
+        return originalFetch(url, { ...options, agent: ipv4Agent });
+    };
+}
+
 // Watchlist
 export const getDailyReports = async (req, res) => {
   try {
