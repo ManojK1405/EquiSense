@@ -7,19 +7,7 @@ import http from 'http';
 import https from 'https';
 import crypto from 'crypto';
 
-const ipv4Agent = new https.Agent({ family: 4 });
-const yahooFinance = new YahooFinance({ 
-    suppressNotices: ['yahooSurvey'],
-    validation: { logErrors: false }
-});
-
-// Hard-bind the fetcher to use IPv4 where possible
-if (yahooFinance._fetch) {
-    const originalFetch = yahooFinance._fetch;
-    yahooFinance._fetch = async (url, options) => {
-        return originalFetch(url, { ...options, agent: ipv4Agent });
-    };
-}
+import { fetchSafeQuote } from '../utils/market-fetcher.js';
 
 // Watchlist
 export const getDailyReports = async (req, res) => {
@@ -182,7 +170,7 @@ export const getPortfolio = async (req, res) => {
 
     const portfolioWithRealTime = await Promise.all(portfolio.map(async (item) => {
       try {
-        const quote = await yahooFinance.quote(item.stock.symbol).catch(() => null);
+        const quote = await fetchSafeQuote(item.stock.symbol);
         const currentPrice = quote?.regularMarketPrice || item.avgPrice || 0;
         const currentTotalValue = currentPrice * item.quantity;
         const pnl = currentTotalValue - item.totalCost;

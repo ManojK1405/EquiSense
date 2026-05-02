@@ -1,5 +1,6 @@
-import YahooFinance from 'yahoo-finance2';
+import { fetchSafeQuote } from '../utils/market-fetcher.js';
 import { fetchStockNews, fetchMarketNews } from '../utils/news.js';
+import YahooFinance from 'yahoo-finance2';
 
 const yahooFinance = new YahooFinance({ 
     suppressNotices: ['yahooSurvey'],
@@ -9,13 +10,12 @@ const yahooFinance = new YahooFinance({
 // Cache for market summary to reduce API overhead
 let cachedMarketData = null;
 let lastCacheUpdate = 0;
-const CACHE_DURATION = 20 * 60 * 1000; // 20 minutes
+const CACHE_DURATION = 10 * 60 * 1000; // Reduced to 10 minutes for better live feel
 
 export const getMarketSummaryData = async () => {
     // Return cached data if valid
     const now = Date.now();
     if (cachedMarketData && (now - lastCacheUpdate < CACHE_DURATION)) {
-        console.log('[MarketService] Serving from institutional cache');
         return cachedMarketData;
     }
 
@@ -28,23 +28,17 @@ export const getMarketSummaryData = async () => {
 
     let pulse = [];
     try {
-        const quotes = await Promise.all(sectors.map(s => 
-            yahooFinance.quote(s.symbol).catch(err => {
-                console.error(`[MarketService] Quote failed for ${s.symbol}:`, err.message);
-                return null;
-            })
-        ));
+        const quotes = await Promise.all(sectors.map(s => fetchSafeQuote(s.symbol)));
 
         pulse = sectors.map((s, i) => {
             const q = quotes[i];
-            // If quote failed, attempt one retry for indices which are critical
             return {
                 name: s.name,
                 symbol: s.symbol,
                 price: q?.regularMarketPrice || 0,
                 change: q?.regularMarketChange || 0,
                 changePercent: q?.regularMarketChangePercent || 0,
-                state: q?.marketState || 'CLOSED'
+                state: q?.marketState || 'OPEN'
             };
         });
         
@@ -74,7 +68,7 @@ export const getMarketSummaryData = async () => {
         }
 
         const trendingQuotes = await Promise.all(
-            trendingSymbols.slice(0, 10).map(sym => yahooFinance.quote(sym).catch(() => null))
+            trendingSymbols.slice(0, 10).map(sym => fetchSafeQuote(sym))
         );
 
         trending = trendingQuotes.filter(q => q).map(q => ({
