@@ -57,6 +57,28 @@ const Settings = () => {
         }
     }, [user]);
 
+    // Proactive Institutional Health Check
+    React.useEffect(() => {
+        if (activeTab === 'brokers' && user?.brokerType && user?.hasBrokerAccess) {
+            const verifySession = async () => {
+                try {
+                    // Try to sync without a request token to trigger session validation
+                    const res = await api.post('/portfolio/sync-broker', {
+                        brokerType: user.brokerType,
+                        apiKey: 'PERSISTED_IN_DB'
+                    });
+                    
+                    if (res.data.message?.includes('expired')) {
+                        console.log('[Settings] Session expired, state will reflect this on next refresh.');
+                    }
+                } catch (err) {
+                    console.error('[Settings] Session validation failed', err);
+                }
+            };
+            verifySession();
+        }
+    }, [activeTab, user]);
+
     const isSessionValid = (brokerId) => {
         if (user?.brokerType !== brokerId) return false;
         if (!user?.hasBrokerAccess) return false;

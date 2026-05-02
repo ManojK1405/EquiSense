@@ -5,6 +5,7 @@ import { isMarketOpen } from '../utils/marketStatus.js';
 import { getAIStrategy, generateGeminiText } from '../utils/gemini.js';
 import http from 'http';
 import https from 'https';
+import crypto from 'crypto';
 
 const ipv4Agent = new https.Agent({ family: 4 });
 const yahooFinance = new YahooFinance({ 
@@ -173,21 +174,27 @@ export const getPortfolio = async (req, res) => {
 
     const portfolioWithRealTime = await Promise.all(portfolio.map(async (item) => {
       try {
-        const quote = await yahooFinance.quote(item.stock.symbol);
-        const currentPrice = quote.regularMarketPrice;
+        const quote = await yahooFinance.quote(item.stock.symbol).catch(() => null);
+        const currentPrice = quote?.regularMarketPrice || item.avgPrice || 0;
         const currentTotalValue = currentPrice * item.quantity;
         const pnl = currentTotalValue - item.totalCost;
-        const pnlPercent = (pnl / item.totalCost) * 100;
+        const pnlPercent = item.totalCost > 0 ? (pnl / item.totalCost) * 100 : 0;
 
         return {
           ...item,
-          currentPrice,
-          pnl,
-          pnlPercent,
+          currentPrice: currentPrice || 0,
+          pnl: pnl || 0,
+          pnlPercent: pnlPercent || 0,
           type: 'mock'
         };
       } catch (e) {
-        return { ...item, type: 'mock' };
+        return { 
+          ...item, 
+          currentPrice: item.avgPrice || 0, 
+          pnl: 0, 
+          pnlPercent: 0, 
+          type: 'mock' 
+        };
       }
     }));
 
@@ -621,10 +628,16 @@ export const syncBroker = async (req, res) => {
 
         if (requestToken) {
             // STEP 1: Exchange Request Token for a reusable Access Token
-            const secretToUse = apiSecret || user?.brokerApiSecret;
-            if (!secretToUse) throw new Error('API Secret is required for first-time handshake.');
+            let secretToUse = apiSecret;
+            
+            // If the frontend sent a placeholder, or secret is missing from request, check DB
+            if (!secretToUse || secretToUse === 'PERSISTED_IN_DB') {
+                secretToUse = user?.brokerApiSecret;
+            }
 
-            const crypto = (await import('crypto')).default;
+            if (!secretToUse || secretToUse === 'PERSISTED_IN_DB') {
+                throw new Error('API Secret is missing or corrupted. Please re-enter your Secret in Settings.');
+            }
             const checksum = crypto.createHash('sha256').update(rawApiKey + requestToken + secretToUse).digest('hex');
 
             const params = new URLSearchParams();
@@ -668,19 +681,24 @@ export const syncBroker = async (req, res) => {
                     loginUrl: `https://kite.zerodha.com/connect/login?v=3&api_key=${rawApiKey}`
                 });
             }
-        } else {
-            // No token and no valid session — return loginUrl so frontend can redirect
-            if (rawApiKey && apiSecret) {
-                await prisma.user.update({
-                    where: { id: req.userId },
-                    data: { brokerType, brokerApiKey: rawApiKey, brokerApiSecret: apiSecret }
+            } else {
+                // No token and no valid session — return loginUrl so frontend can redirect
+                if (rawApiKey && apiSecret && apiSecret !== 'PERSISTED_IN_DB') {
+                    await prisma.user.update({
+                        where: { id: req.userId },
+                        data: { brokerType, brokerApiKey: rawApiKey, brokerApiSecret: apiSecret }
+                    });
+                } else if (rawApiKey) {
+                    await prisma.user.update({
+                        where: { id: req.userId },
+                        data: { brokerType, brokerApiKey: rawApiKey }
+                    });
+                }
+                return res.json({
+                    message: 'Credentials saved. Please authorize on Zerodha.',
+                    loginUrl: `https://kite.zerodha.com/connect/login?v=3&api_key=${rawApiKey}`
                 });
             }
-            return res.json({
-                message: 'Credentials saved. Please authorize on Zerodha.',
-                loginUrl: `https://kite.zerodha.com/connect/login?v=3&api_key=${rawApiKey}`
-            });
-        }
 
         const [holdingsRaw, positionsRaw] = await Promise.all([
            axios.get('https://api.kite.trade/portfolio/holdings', {
