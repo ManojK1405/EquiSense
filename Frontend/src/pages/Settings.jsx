@@ -16,6 +16,7 @@ const Settings = () => {
     const [showDisconnectConfirm, setShowDisconnectConfirm] = useState(false);
     const [selectedBroker, setSelectedBroker] = useState(null);
     const [credentials, setCredentials] = useState({ apiKey: '', apiSecret: '', requestToken: '' });
+    const [showBrokerSecret, setShowBrokerSecret] = useState(false);
 
     // Auto-capture request_token from URL after Zerodha redirect
     React.useEffect(() => {
@@ -415,7 +416,7 @@ const Settings = () => {
                                                                     setCredentials(prev => ({ 
                                                                         ...prev, 
                                                                         apiKey: user?.[`${broker.id}ApiKey`] || '',
-                                                                        apiSecret: user?.[`has${broker.id.charAt(0).toUpperCase() + broker.id.slice(1)}ApiSecret`] ? 'VAULTED_SECRET' : '' 
+                                                                        apiSecret: user?.[`${broker.id}ApiSecret`] || '' 
                                                                     }));
                                                                     setShowBrokerModal(true);
                                                                 }}
@@ -513,73 +514,33 @@ const Settings = () => {
                                     </div>
                                     <div className="space-y-2">
                                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Broker API Secret</label>
-                                        <input 
-                                            type="password" 
-                                            name="broker_api_secret_field"
-                                            autoComplete="new-password"
-                                            className="w-full p-6 bg-slate-50 border border-slate-100 rounded-3xl text-sm font-black focus:outline-none focus:border-orange-600/30 transition-all" 
-                                            value={credentials.apiSecret}
-                                            onChange={(e) => setCredentials({...credentials, apiSecret: e.target.value})}
-                                            placeholder={user?.[`has${selectedBroker?.id.charAt(0).toUpperCase() + selectedBroker?.id.slice(1)}ApiSecret`] ? "Stored Securely (••••••••)" : "••••••••••••"}
-                                            required={!user?.[`has${selectedBroker?.id.charAt(0).toUpperCase() + selectedBroker?.id.slice(1)}ApiSecret`]}
-                                        />
-                                    </div>
-                                    {selectedBroker.id === 'zerodha' && (
-                                        <div className="space-y-6">
-                                            <div className="p-6 bg-orange-50 border border-orange-100 rounded-3xl">
-                                                <h4 className="text-[10px] font-black text-orange-600 uppercase tracking-widest mb-2">Automated Handshake</h4>
-                                                <p className="text-[10px] text-slate-500 font-bold leading-relaxed mb-4 uppercase">
-                                                    After entering your keys, click below to authorize on Zerodha. We will capture the token automatically.
-                                                </p>
-                                                <button 
-                                                    type="button"
-                                                    onClick={async () => {
-                                                        if (!credentials.apiKey || (!credentials.apiSecret && !user?.[`has${selectedBroker?.id.charAt(0).toUpperCase() + selectedBroker?.id.slice(1)}ApiSecret`])) {
-                                                            return toast.error('Enter API Key and Secret first');
-                                                        }
-                                                        try {
-                                                            // STEP 1: Save credentials to DB so we have them when we return
-                                                            toast.loading('Saving Credentials...', { id: 'auth' });
-                                                            await api.post('/portfolio/sync-broker', {
-                                                                brokerType: 'zerodha',
-                                                                apiKey: credentials.apiKey,
-                                                                apiSecret: credentials.apiSecret === 'VAULTED_SECRET' ? 'PERSISTED_IN_DB' : credentials.apiSecret
-                                                            });
-                                                            
-                                                            // STEP 2: Redirect to Zerodha
-                                                            toast.success('Credentials Saved. Redirecting...', { id: 'auth' });
-                                                            const loginUrl = `https://kite.zerodha.com/connect/login?v=3&api_key=${credentials.apiKey}`;
-                                                            setTimeout(() => {
-                                                                window.location.href = loginUrl;
-                                                            }, 800);
-                                                        } catch (err) {
-                                                            toast.error('Failed to save credentials. Check your API details.', { id: 'auth' });
-                                                        }
-                                                    }}
-                                                    className="w-full py-4 bg-white border-2 border-orange-200 text-orange-600 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-orange-600 hover:text-white hover:border-orange-600 transition-all shadow-sm"
-                                                >
-                                                    Launch Kite Authorization
-                                                </button>
-                                            </div>
-
-                                            <div className="space-y-2">
-                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Manual Request Token (Optional)</label>
-                                                <input 
-                                                    type="text" 
-                                                    className="w-full p-6 bg-slate-50 border border-slate-100 rounded-3xl text-sm font-black focus:outline-none focus:border-orange-600/30 transition-all" 
-                                                    value={credentials.requestToken}
-                                                    onChange={(e) => setCredentials({...credentials, requestToken: e.target.value})}
-                                                    placeholder="Captured automatically after login"
-                                                />
-                                            </div>
+                                        <div className="relative">
+                                            <input 
+                                                type={showBrokerSecret ? "text" : "password"} 
+                                                name="broker_api_secret_field"
+                                                autoComplete="new-password"
+                                                className="w-full p-6 bg-slate-50 border border-slate-100 rounded-3xl text-sm font-black focus:outline-none focus:border-orange-600/30 transition-all pr-12" 
+                                                value={credentials.apiSecret}
+                                                onChange={(e) => setCredentials({...credentials, apiSecret: e.target.value})}
+                                                placeholder="••••••••••••"
+                                                required
+                                            />
+                                            <button 
+                                                type="button"
+                                                onClick={() => setShowBrokerSecret(!showBrokerSecret)}
+                                                className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                                            >
+                                                {showBrokerSecret ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                                            </button>
                                         </div>
-                                    )}
+                                    </div>
 
                                     <button 
                                         type="submit"
-                                        className="w-full py-6 bg-slate-900 text-white rounded-[24px] font-black text-xs uppercase tracking-[0.2em] shadow-xl hover:bg-orange-600 transition-all active:scale-95 mt-4"
+                                        disabled={isSessionValid(selectedBroker.id)}
+                                        className={`w-full py-6 rounded-[24px] font-black text-xs uppercase tracking-[0.2em] shadow-xl transition-all mt-4 ${isSessionValid(selectedBroker.id) ? 'bg-emerald-500 text-white opacity-90 cursor-not-allowed' : 'bg-slate-900 text-white hover:bg-orange-600 active:scale-95'}`}
                                     >
-                                        Establish Live Link
+                                        {isSessionValid(selectedBroker.id) ? 'Live Link Active' : 'Establish Live Link'}
                                     </button>
                                     
                                     <p className="text-[9px] text-center text-slate-400 font-bold uppercase tracking-widest leading-relaxed">

@@ -35,7 +35,7 @@ export const signup = async (req, res) => {
     const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET || 'secret', { expiresIn: '7d' });
 
     res.cookie('token', token, cookieOptions);
-    res.status(201).json({ user: { id: user.id, email: user.email, name: user.name, brokerType: user.brokerType, zerodhaApiKey: user.zerodhaApiKey, hasZerodhaApiSecret: !!user.zerodhaApiSecret, zerodhaAccessExpiry: user.zerodhaAccessExpiry, growwApiKey: user.growwApiKey, hasGrowwApiSecret: !!user.growwApiSecret, growwAccessExpiry: user.growwAccessExpiry, dhanApiKey: user.dhanApiKey, hasDhanApiSecret: !!user.dhanApiSecret, dhanAccessExpiry: user.dhanAccessExpiry, mockBalance: user.mockBalance, autoPilotMock: user.autoPilotMock, autoPilotLive: user.autoPilotLive, pilotLimitMock: user.pilotLimitMock, pilotLimitLive: user.pilotLimitLive }, token });
+    res.status(201).json({ user: { id: user.id, email: user.email, name: user.name, brokerType: user.brokerType, zerodhaApiKey: user.zerodhaApiKey, hasZerodhaApiSecret: !!user.zerodhaApiSecret, hasZerodhaAccessToken: !!user.zerodhaAccessToken, zerodhaAccessExpiry: user.zerodhaAccessExpiry, growwApiKey: user.growwApiKey, hasGrowwApiSecret: !!user.growwApiSecret, hasGrowwAccessToken: !!user.growwAccessToken, growwAccessExpiry: user.growwAccessExpiry, dhanApiKey: user.dhanApiKey, hasDhanApiSecret: !!user.dhanApiSecret, hasDhanAccessToken: !!user.dhanAccessToken, dhanAccessExpiry: user.dhanAccessExpiry, mockBalance: user.mockBalance, autoPilotMock: user.autoPilotMock, autoPilotLive: user.autoPilotLive, pilotLimitMock: user.pilotLimitMock, pilotLimitLive: user.pilotLimitLive }, token });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Something went wrong' });
@@ -59,7 +59,7 @@ export const login = async (req, res) => {
     const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET || 'secret', { expiresIn: '7d' });
 
     res.cookie('token', token, cookieOptions);
-    res.status(200).json({ user: { id: user.id, email: user.email, name: user.name, brokerType: user.brokerType, zerodhaApiKey: user.zerodhaApiKey, hasZerodhaApiSecret: !!user.zerodhaApiSecret, zerodhaAccessExpiry: user.zerodhaAccessExpiry, growwApiKey: user.growwApiKey, hasGrowwApiSecret: !!user.growwApiSecret, growwAccessExpiry: user.growwAccessExpiry, dhanApiKey: user.dhanApiKey, hasDhanApiSecret: !!user.dhanApiSecret, dhanAccessExpiry: user.dhanAccessExpiry, mockBalance: user.mockBalance, autoPilotMock: user.autoPilotMock, autoPilotLive: user.autoPilotLive, pilotLimitMock: user.pilotLimitMock, pilotLimitLive: user.pilotLimitLive }, token });
+    res.status(200).json({ user: { id: user.id, email: user.email, name: user.name, brokerType: user.brokerType, zerodhaApiKey: user.zerodhaApiKey, hasZerodhaApiSecret: !!user.zerodhaApiSecret, hasZerodhaAccessToken: !!user.zerodhaAccessToken, zerodhaAccessExpiry: user.zerodhaAccessExpiry, growwApiKey: user.growwApiKey, hasGrowwApiSecret: !!user.growwApiSecret, hasGrowwAccessToken: !!user.growwAccessToken, growwAccessExpiry: user.growwAccessExpiry, dhanApiKey: user.dhanApiKey, hasDhanApiSecret: !!user.dhanApiSecret, hasDhanAccessToken: !!user.dhanAccessToken, dhanAccessExpiry: user.dhanAccessExpiry, mockBalance: user.mockBalance, autoPilotMock: user.autoPilotMock, autoPilotLive: user.autoPilotLive, pilotLimitMock: user.pilotLimitMock, pilotLimitLive: user.pilotLimitLive }, token });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Something went wrong' });
@@ -99,7 +99,7 @@ export const googleLogin = async (req, res) => {
     const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET || 'secret', { expiresIn: '7d' });
 
     res.cookie('token', token, cookieOptions);
-    res.status(200).json({ user: { id: user.id, email: user.email, name: user.name, avatar: user.avatar, brokerType: user.brokerType, zerodhaApiKey: user.zerodhaApiKey, hasZerodhaApiSecret: !!user.zerodhaApiSecret, zerodhaAccessExpiry: user.zerodhaAccessExpiry, growwApiKey: user.growwApiKey, hasGrowwApiSecret: !!user.growwApiSecret, growwAccessExpiry: user.growwAccessExpiry, dhanApiKey: user.dhanApiKey, hasDhanApiSecret: !!user.dhanApiSecret, dhanAccessExpiry: user.dhanAccessExpiry, mockBalance: user.mockBalance, autoPilotMock: user.autoPilotMock, autoPilotLive: user.autoPilotLive, pilotLimitMock: user.pilotLimitMock, pilotLimitLive: user.pilotLimitLive }, token });
+    res.status(200).json({ user: { id: user.id, email: user.email, name: user.name, avatar: user.avatar, brokerType: user.brokerType, zerodhaApiKey: user.zerodhaApiKey, hasZerodhaApiSecret: !!user.zerodhaApiSecret, hasZerodhaAccessToken: !!user.zerodhaAccessToken, zerodhaAccessExpiry: user.zerodhaAccessExpiry, growwApiKey: user.growwApiKey, hasGrowwApiSecret: !!user.growwApiSecret, hasGrowwAccessToken: !!user.growwAccessToken, growwAccessExpiry: user.growwAccessExpiry, dhanApiKey: user.dhanApiKey, hasDhanApiSecret: !!user.dhanApiSecret, hasDhanAccessToken: !!user.dhanAccessToken, dhanAccessExpiry: user.dhanAccessExpiry, mockBalance: user.mockBalance, autoPilotMock: user.autoPilotMock, autoPilotLive: user.autoPilotLive, pilotLimitMock: user.pilotLimitMock, pilotLimitLive: user.pilotLimitLive }, token });
   } catch (error) {
     console.error('[Google Login Error]:', error.message);
     res.status(500).json({ 
@@ -122,13 +122,7 @@ export const getMe = async (req, res) => {
       hasGrowwAccessToken: !!user.growwAccessToken,
       hasGrowwApiSecret: !!user.growwApiSecret,
       hasDhanAccessToken: !!user.dhanAccessToken,
-      hasDhanApiSecret: !!user.dhanApiSecret,
-      zerodhaAccessToken: undefined,
-      zerodhaApiSecret: undefined,
-      growwAccessToken: undefined,
-      growwApiSecret: undefined,
-      dhanAccessToken: undefined,
-      dhanApiSecret: undefined // Hide the actual secrets
+      hasDhanApiSecret: !!user.dhanApiSecret
     };
     res.status(200).json(userPayload);
   } catch (error) {

@@ -521,13 +521,8 @@ const Portfolio = () => {
                     {/* Centre: Mode + Broker */}
                     <div className="flex items-center gap-2">
                         <div className="flex bg-slate-100 p-0.5 rounded-xl border border-slate-200/80">
-                            <button onClick={async () => { 
-                                if (mode === 'live') {
-                                    setMode('mock');
-                                    localStorage.setItem('tradingMode', 'mock');
-                                    await api.post('/portfolio/mode', { mode: 'mock' }).catch(() => {});
-                                    fetchData('mock');
-                                }
+                            <button onClick={() => { 
+                                if (mode === 'live') setShowModeConfirm(true); 
                             }}
                                 className={`px-4 py-1.5 rounded-[10px] font-black text-[9px] uppercase tracking-widest transition-all ${mode === 'mock' ? 'bg-white text-orange-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>
                                 Mock
