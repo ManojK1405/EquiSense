@@ -7,7 +7,10 @@ const yahooFinance = new YahooFinance({
 });
 
 export const executeLiveTrade = async (user, symbol, quantity, action) => {
-    const { brokerType, brokerApiKey, brokerApiSecret, brokerAccess } = user;
+    const { brokerType } = user;
+    const brokerApiKey = user[`${brokerType}ApiKey`];
+    const brokerApiSecret = user[`${brokerType}ApiSecret`];
+    const brokerAccess = user[`${brokerType}AccessToken`];
     
     if (!brokerApiKey || !brokerAccess) {
         throw new Error('Broker credentials missing for live execution.');
@@ -83,9 +86,9 @@ export const processTradesImmediately = async (apiKey, apiSecret, brokerType, tr
 
         const result = await executeLiveTrade({
             brokerType,
-            brokerApiKey: apiKey.includes(':') ? apiKey.split(':')[0] : apiKey,
-            brokerApiSecret: apiSecret,
-            brokerAccess: apiKey // This is the stored Access Token (apiKey:accessToken)
+            [`${brokerType}ApiKey`]: apiKey.includes(':') ? apiKey.split(':')[0] : apiKey,
+            [`${brokerType}ApiSecret`]: apiSecret,
+            [`${brokerType}AccessToken`]: apiKey // This is the stored Access Token (apiKey:accessToken)
         }, trade.symbol, quantity, trade.action || 'BUY');
 
         orderResults.push({ 

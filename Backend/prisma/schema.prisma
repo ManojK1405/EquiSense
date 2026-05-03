@@ -31,10 +31,20 @@ model User {
   updatedAt DateTime @updatedAt
 
   brokerType      String?
-  brokerApiKey    String?
-  brokerApiSecret String?
-  brokerAccess        String?
-  brokerAccessExpiry  DateTime?
+  zerodhaApiKey       String?
+  zerodhaApiSecret    String?
+  zerodhaAccessToken  String?
+  zerodhaAccessExpiry DateTime?
+
+  growwApiKey         String?
+  growwApiSecret      String?
+  growwAccessToken    String?
+  growwAccessExpiry   DateTime?
+
+  dhanApiKey          String?
+  dhanApiSecret       String?
+  dhanAccessToken     String?
+  dhanAccessExpiry    DateTime?
   mockBalance         Float    @default(10000)  // Starting mock balance
   settlementBalance   Float    @default(0)      // Funds pending T+1 settlement
   autoPilotMock  Boolean  @default(false)

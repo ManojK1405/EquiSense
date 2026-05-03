@@ -116,7 +116,8 @@ const AIStrategist = () => {
 
     const handleDeployRequest = () => {
         if (!strategy) return;
-        if (executionMode === 'live' && !user?.brokerApiKey) {
+        const brokerKey = user?.brokerType ? user[`${user.brokerType}ApiKey`] : null;
+        if (executionMode === 'live' && !brokerKey) {
             toast.error('Broker Not Connected. Visit Settings to link your account.');
             return;
         }
@@ -724,14 +725,14 @@ const AIStrategist = () => {
                                                                             </div>
                                                                             <div className="p-6 bg-slate-50 rounded-[28px] border border-slate-100 group hover:bg-white hover:shadow-lg transition-all">
                                                                                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Transmission Channel</p>
-                                                                                <p className={`text-lg font-black tracking-tight ${executionMode === 'mock' ? 'text-emerald-600' : (user?.brokerAccess ? 'text-emerald-600' : 'text-rose-600')}`}>
-                                                                                    {executionMode === 'mock' ? 'Paper Trading' : (user?.brokerAccess ? 'API Linked' : 'Auth Required')}
+                                                                                <p className={`text-lg font-black tracking-tight ${executionMode === 'mock' ? 'text-emerald-600' : ((user?.brokerType && user[`has${user.brokerType.charAt(0).toUpperCase() + user.brokerType.slice(1)}AccessToken`]) ? 'text-emerald-600' : 'text-rose-600')}`}>
+                                                                                    {executionMode === 'mock' ? 'Paper Trading' : ((user?.brokerType && user[`has${user.brokerType.charAt(0).toUpperCase() + user.brokerType.slice(1)}AccessToken`]) ? 'API Linked' : 'Auth Required')}
                                                                                 </p>
                                                                             </div>
                                                                         </div>
                                                                         <button 
                                                                             onClick={handleDeployRequest}
-                                                                            disabled={executing || (executionMode === 'live' && !user?.brokerAccess)}
+                                                                            disabled={executing || (executionMode === 'live' && !(user?.brokerType && user[`has${user.brokerType.charAt(0).toUpperCase() + user.brokerType.slice(1)}AccessToken`]))}
                                                                             className={`w-full py-5 rounded-[22px] font-black text-[11px] uppercase tracking-[0.4em] transition-all flex items-center justify-center gap-4 shadow-xl active:scale-[0.98] ${executing ? 'bg-slate-100 text-slate-300 cursor-not-allowed' : 'bg-gradient-to-r from-slate-900 to-slate-800 text-white hover:scale-[1.01] hover:shadow-slate-900/10'}`}
                                                                         >
                                                                             {executing ? <RefreshCw className="w-5 h-5 animate-spin" /> : <PlayCircle className="w-6 h-6 text-rose-500" />}

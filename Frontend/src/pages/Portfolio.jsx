@@ -533,9 +533,9 @@ const Portfolio = () => {
                                 Mock
                             </button>
                             <button 
-                                disabled={!user?.hasBrokerAccess || (user?.brokerAccessExpiry && new Date(user.brokerAccessExpiry) <= new Date(Date.now() - 30*60000))} 
+                                disabled={!(user?.brokerType && user[`has${user.brokerType.charAt(0).toUpperCase() + user.brokerType.slice(1)}AccessToken`]) || (user?.[`${user.brokerType}AccessExpiry`] && new Date(user[`${user.brokerType}AccessExpiry`]) <= new Date(Date.now() - 30*60000))} 
                                 onClick={() => { if (mode === 'mock') setShowModeConfirm(true); }}
-                                className={`px-4 py-1.5 rounded-[10px] font-black text-[9px] uppercase tracking-widest transition-all ${mode === 'live' ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:text-slate-600'} ${(!user?.hasBrokerAccess || (user?.brokerAccessExpiry && new Date(user.brokerAccessExpiry) <= new Date(Date.now() - 30*60000))) ? 'opacity-40 cursor-not-allowed' : ''}`}>
+                                className={`px-4 py-1.5 rounded-[10px] font-black text-[9px] uppercase tracking-widest transition-all ${mode === 'live' ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:text-slate-600'} ${(!(user?.brokerType && user[`has${user.brokerType.charAt(0).toUpperCase() + user.brokerType.slice(1)}AccessToken`]) || (user?.[`${user.brokerType}AccessExpiry`] && new Date(user[`${user.brokerType}AccessExpiry`]) <= new Date(Date.now() - 30*60000))) ? 'opacity-40 cursor-not-allowed' : ''}`}>
                                 Live
                             </button>
                         </div>

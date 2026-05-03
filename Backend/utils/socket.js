@@ -66,8 +66,8 @@ export const setupSocketHandlers = () => {
       socket.join(`user_${userId}`);
 
       const user = await prisma.user.findUnique({ where: { id: userId } });
-      if (user && user.brokerType === 'zerodha' && user.brokerAccess) {
-        startZerodhaTicker(userId, user.brokerApiKey, user.brokerAccess.split(':')[1], symbols);
+      if (user && user.brokerType === 'zerodha' && user.zerodhaAccessToken) {
+        startZerodhaTicker(userId, user.zerodhaApiKey, user.zerodhaAccessToken.split(':')[1], symbols);
       }
     });
 

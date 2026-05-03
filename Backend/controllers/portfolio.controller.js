@@ -7,6 +7,8 @@ import http from 'http';
 import https from 'https';
 import crypto from 'crypto';
 
+const ipv4Agent = new https.Agent({ family: 4 });
+
 import { fetchSafeQuote } from '../utils/market-fetcher.js';
 
 // Watchlist
@@ -74,19 +76,19 @@ export const getPortfolio = async (req, res) => {
         return res.status(404).json({ error: 'User not found' });
     }
 
-    if (mode === 'live' && user.brokerType === 'zerodha' && user.brokerAccess) {
+    if (mode === 'live' && user.brokerType === 'zerodha' && user.zerodhaAccessToken) {
         try {
             const [holdingsRaw, positionsRaw, marginsRaw] = await Promise.all([
                axios.get('https://api.kite.trade/portfolio/holdings', {
-                 headers: { 'X-Kite-Version': '3', 'Authorization': `token ${user.brokerAccess}` },
+                 headers: { 'X-Kite-Version': '3', 'Authorization': `token ${user.zerodhaAccessToken}` },
                  httpsAgent: ipv4Agent
                }),
                axios.get('https://api.kite.trade/portfolio/positions', {
-                 headers: { 'X-Kite-Version': '3', 'Authorization': `token ${user.brokerAccess}` },
+                 headers: { 'X-Kite-Version': '3', 'Authorization': `token ${user.zerodhaAccessToken}` },
                  httpsAgent: ipv4Agent
                }),
                axios.get('https://api.kite.trade/user/margins', {
-                 headers: { 'X-Kite-Version': '3', 'Authorization': `token ${user.brokerAccess}` },
+                 headers: { 'X-Kite-Version': '3', 'Authorization': `token ${user.zerodhaAccessToken}` },
                  httpsAgent: ipv4Agent
                })
             ]);
@@ -613,9 +615,9 @@ export const syncBroker = async (req, res) => {
     let accessToken = null;
 
     if (apiKey === 'PERSISTED_IN_DB') {
-        if (!user || !user.brokerApiKey) return res.status(401).json({ error: 'No stored credentials' });
-        rawApiKey = user.brokerApiKey;
-        accessToken = user.brokerAccess;
+        if (!user || !user[`${brokerType}ApiKey`]) return res.status(401).json({ error: 'No stored credentials' });
+        rawApiKey = user[`${brokerType}ApiKey`];
+        accessToken = user[`${brokerType}AccessToken`];
     }
 
     if (brokerType === 'zerodha') {
@@ -628,7 +630,7 @@ export const syncBroker = async (req, res) => {
             
             // If the frontend sent a placeholder, or secret is missing from request, check DB
             if (!secretToUse || secretToUse === 'PERSISTED_IN_DB') {
-                secretToUse = user?.brokerApiSecret;
+                secretToUse = user?.[`${brokerType}ApiSecret`];
             }
 
             if (!secretToUse || secretToUse === 'PERSISTED_IN_DB') {
@@ -657,20 +659,20 @@ export const syncBroker = async (req, res) => {
                 expiryDate.setUTCDate(expiryDate.getUTCDate() + 1);
             }
             console.log('[Zerodha] Handshake SUCCESS. Storing reusable Access Token. Expiry:', expiryDate);
-        } else if (user?.brokerAccess && (!user?.brokerAccessExpiry || user.brokerAccessExpiry > now)) {
+        } else if (user?.[`${brokerType}AccessToken`] && (!user?.[`${brokerType}AccessExpiry`] || user[`${brokerType}AccessExpiry`] > now)) {
             // STEP 2: Reuse stored Access Token (The "Store once, use all day" logic)
             console.log('[Zerodha] Attempting session reuse for user:', user.id);
             try {
                 await axios.get('https://api.kite.trade/user/margins', {
-                    headers: { 'X-Kite-Version': '3', 'Authorization': `token ${user.brokerAccess}` }
+                    headers: { 'X-Kite-Version': '3', 'Authorization': `token ${user[`${brokerType}AccessToken`]}` }
                 });
-                accessToken = user.brokerAccess;
+                accessToken = user[`${brokerType}AccessToken`];
                 console.log('[Zerodha] Stored Access Token is still valid. Reusing session.');
             } catch (err) {
                 console.log('[Zerodha] Stored session expired or invalid. Requiring fresh authorization.');
                 await prisma.user.update({
                     where: { id: req.userId },
-                    data: { brokerAccess: null, brokerAccessExpiry: null }
+                    data: { [`${brokerType}AccessToken`]: null, [`${brokerType}AccessExpiry`]: null }
                 });
                 return res.json({
                     message: 'Broker session expired. Please re-authorize.',
@@ -682,12 +684,12 @@ export const syncBroker = async (req, res) => {
                 if (rawApiKey && apiSecret && apiSecret !== 'PERSISTED_IN_DB') {
                     await prisma.user.update({
                         where: { id: req.userId },
-                        data: { brokerType, brokerApiKey: rawApiKey, brokerApiSecret: apiSecret }
+                        data: { brokerType, [`${brokerType}ApiKey`]: rawApiKey, [`${brokerType}ApiSecret`]: apiSecret }
                     });
                 } else if (rawApiKey) {
                     await prisma.user.update({
                         where: { id: req.userId },
-                        data: { brokerType, brokerApiKey: rawApiKey }
+                        data: { brokerType, [`${brokerType}ApiKey`]: rawApiKey }
                     });
                 }
                 return res.json({
@@ -773,10 +775,10 @@ export const syncBroker = async (req, res) => {
             where: { id: req.userId },
             data: {
                 brokerType: brokerType,
-                brokerApiKey: rawApiKey,
-                brokerApiSecret: apiSecret || user?.brokerApiSecret || null,
-                brokerAccess: authenticatedAccessToken,
-                brokerAccessExpiry: expiryDate
+                [`${brokerType}ApiKey`]: rawApiKey,
+                [`${brokerType}ApiSecret`]: (apiSecret && apiSecret !== 'PERSISTED_IN_DB') ? apiSecret : user?.[`${brokerType}ApiSecret`],
+                [`${brokerType}AccessToken`]: authenticatedAccessToken,
+                [`${brokerType}AccessExpiry`]: expiryDate
             }
         });
     }
@@ -794,16 +796,24 @@ export const syncBroker = async (req, res) => {
 
 export const disconnectBroker = async (req, res) => {
     try {
+        const user = await prisma.user.findUnique({ where: { id: req.userId } });
+        const brokerType = user?.brokerType;
+        
+        let updateData = {
+            brokerType: null,
+            tradingMode: 'mock' // Revert to mock mode on disconnect
+        };
+
+        if (brokerType) {
+            updateData[`${brokerType}ApiKey`] = null;
+            updateData[`${brokerType}ApiSecret`] = null;
+            updateData[`${brokerType}AccessToken`] = null;
+            updateData[`${brokerType}AccessExpiry`] = null;
+        }
+
         await prisma.user.update({
             where: { id: req.userId },
-            data: {
-                brokerType: null,
-                brokerApiKey: null,
-                brokerApiSecret: null,
-                brokerAccess: null,
-                brokerAccessExpiry: null,
-                tradingMode: 'mock' // Revert to mock mode on disconnect
-            }
+            data: updateData
         });
         res.json({ message: 'Broker disconnected and credentials purged.' });
     } catch (error) {

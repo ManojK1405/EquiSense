@@ -43,10 +43,10 @@ export const connectZerodha = async (req, res) => {
                 where: { id: req.userId },
                 data: {
                     brokerType: 'zerodha',
-                    brokerApiKey: apiKey,
-                    brokerApiSecret: apiSecret,
-                    brokerAccess: fullToken,
-                    brokerAccessExpiry: expiryDate
+                    zerodhaApiKey: apiKey,
+                    zerodhaApiSecret: apiSecret,
+                    zerodhaAccessToken: fullToken,
+                    zerodhaAccessExpiry: expiryDate
                 }
             });
         }
@@ -94,7 +94,7 @@ export const getQuotes = async (req, res) => {
 
     try {
         const user = await prisma.user.findUnique({ where: { id: req.userId } });
-        if (!user || user.brokerType !== 'zerodha' || !user.brokerAccess) {
+        if (!user || user.brokerType !== 'zerodha' || !user.zerodhaAccessToken) {
             return res.status(401).json({ error: "Missing backend Zerodha DB session." });
         }
         const queryParams = symbols.map(s => {
@@ -106,7 +106,7 @@ export const getQuotes = async (req, res) => {
         const response = await axios.get(`https://api.kite.trade/quote?${queryParams}`, {
             headers: {
                 'X-Kite-Version': '3',
-                'Authorization': `token ${user.brokerAccess}`
+                'Authorization': `token ${user.zerodhaAccessToken}`
             }
         });
 
@@ -123,5 +123,27 @@ export const getQuotes = async (req, res) => {
     } catch (error) {
         console.error("[Zerodha] Fetching quotes failed:", error.response?.data || error.message);
         res.status(500).json({ error: "Failed to fetch live quotes from Zerodha" });
+    }
+};
+
+// Step 4: Handle Live Order Webhooks (Postbacks)
+export const handleWebhook = async (req, res) => {
+    try {
+        const payload = req.body;
+        console.log("[Zerodha Webhook] Received live order update:", payload.order_id, "Status:", payload.status);
+
+        // Acknowledge receipt to Zerodha immediately
+        res.status(200).send("OK");
+
+        if (payload.status === 'COMPLETE') {
+            console.log(`[Zerodha Webhook] ✅ Execution Confirmed: ${payload.transaction_type} ${payload.filled_quantity} ${payload.tradingsymbol} @ ₹${payload.average_price}`);
+            
+            // Here you can add logic to update your TradeLog or PortfolioItem models 
+            // if you start tracking broker order_ids in your database.
+        } else if (payload.status === 'REJECTED') {
+            console.error(`[Zerodha Webhook] ❌ Order Rejected: ${payload.status_message}`);
+        }
+    } catch (error) {
+        console.error("[Zerodha Webhook] Critical Error processing postback:", error);
     }
 };

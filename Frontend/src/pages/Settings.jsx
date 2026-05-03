@@ -25,7 +25,7 @@ const Settings = () => {
             setCredentials(prev => ({ 
                 ...prev, 
                 requestToken: token,
-                apiKey: user?.brokerApiKey || '' 
+                apiKey: user?.zerodhaApiKey || '' 
             }));
             setSelectedBroker({ id: 'zerodha', name: 'Zerodha Kite' });
             // Auto-trigger handshake if we have the token and the broker is Zerodha
@@ -59,7 +59,8 @@ const Settings = () => {
 
     // Proactive Institutional Health Check
     React.useEffect(() => {
-        if (activeTab === 'brokers' && user?.brokerType && user?.hasBrokerAccess) {
+        const checkAccess = user?.brokerType ? user[`has${user.brokerType.charAt(0).toUpperCase() + user.brokerType.slice(1)}AccessToken`] : false;
+        if (activeTab === 'brokers' && user?.brokerType && checkAccess) {
             const verifySession = async () => {
                 try {
                     // Try to sync without a request token to trigger session validation
@@ -80,12 +81,14 @@ const Settings = () => {
 
     const isSessionValid = (brokerId) => {
         if (user?.brokerType !== brokerId) return false;
-        if (!user?.hasBrokerAccess) return false;
+        const hasAccess = user?.[`has${brokerId.charAt(0).toUpperCase() + brokerId.slice(1)}AccessToken`];
+        if (!hasAccess) return false;
         
         // If we have an expiry date, check it. 
         // We add a small 30-minute buffer to account for clock skew
-        if (user?.brokerAccessExpiry) {
-            const expiry = new Date(user.brokerAccessExpiry);
+        const expiryDate = user?.[`${brokerId}AccessExpiry`];
+        if (expiryDate) {
+            const expiry = new Date(expiryDate);
             const now = new Date();
             now.setMinutes(now.getMinutes() - 30); 
             return expiry > now;
@@ -411,8 +414,8 @@ const Settings = () => {
                                                                     setSelectedBroker(broker);
                                                                     setCredentials(prev => ({ 
                                                                         ...prev, 
-                                                                        apiKey: user?.brokerApiKey || '',
-                                                                        apiSecret: user?.hasBrokerApiSecret ? 'VAULTED_SECRET' : '' 
+                                                                        apiKey: user?.[`${broker.id}ApiKey`] || '',
+                                                                        apiSecret: user?.[`has${broker.id.charAt(0).toUpperCase() + broker.id.slice(1)}ApiSecret`] ? 'VAULTED_SECRET' : '' 
                                                                     }));
                                                                     setShowBrokerModal(true);
                                                                 }}
@@ -517,8 +520,8 @@ const Settings = () => {
                                             className="w-full p-6 bg-slate-50 border border-slate-100 rounded-3xl text-sm font-black focus:outline-none focus:border-orange-600/30 transition-all" 
                                             value={credentials.apiSecret}
                                             onChange={(e) => setCredentials({...credentials, apiSecret: e.target.value})}
-                                            placeholder={user?.hasBrokerApiSecret ? "Stored Securely (••••••••)" : "••••••••••••"}
-                                            required={!user?.hasBrokerApiSecret}
+                                            placeholder={user?.[`has${selectedBroker?.id.charAt(0).toUpperCase() + selectedBroker?.id.slice(1)}ApiSecret`] ? "Stored Securely (••••••••)" : "••••••••••••"}
+                                            required={!user?.[`has${selectedBroker?.id.charAt(0).toUpperCase() + selectedBroker?.id.slice(1)}ApiSecret`]}
                                         />
                                     </div>
                                     {selectedBroker.id === 'zerodha' && (
@@ -531,7 +534,7 @@ const Settings = () => {
                                                 <button 
                                                     type="button"
                                                     onClick={async () => {
-                                                        if (!credentials.apiKey || (!credentials.apiSecret && !user?.hasBrokerApiSecret)) {
+                                                        if (!credentials.apiKey || (!credentials.apiSecret && !user?.[`has${selectedBroker?.id.charAt(0).toUpperCase() + selectedBroker?.id.slice(1)}ApiSecret`])) {
                                                             return toast.error('Enter API Key and Secret first');
                                                         }
                                                         try {

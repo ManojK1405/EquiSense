@@ -89,7 +89,7 @@ async function getMarketPulse() {
 
 async function manageUserWealth(user, mode) {
     try {
-        if (mode === 'live' && !user.brokerAccess) return;
+        if (mode === 'live' && (!user.brokerType || !user[`${user.brokerType}AccessToken`])) return;
 
         const pulse = await getMarketPulse();
 
