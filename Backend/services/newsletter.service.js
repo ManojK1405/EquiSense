@@ -46,7 +46,7 @@ export const dispatchIntelligenceBrief = async () => {
         }
 
         // 2. Use AI to craft the briefing (What to expect)
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
         
         const newsTitles = marketData.topNews?.map(n => n.title).join('\n') || 'No major news reported.';
         const pulseSummary = marketData.pulse?.map(p => `${p.name}: ₹${p.price} (${p.changePercent.toFixed(2)}%)`).join(', ') || 'Market data unavailable.';
