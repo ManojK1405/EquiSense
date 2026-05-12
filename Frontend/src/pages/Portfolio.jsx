@@ -603,10 +603,12 @@ const Portfolio = () => {
                                                     </div>
                                                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Net P&L</p>
                                                 </div>
-                                                <p className={`text-2xl font-black tracking-tight ${totalPnL >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                                 <p className={`text-2xl font-black tracking-tight ${totalPnL >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
                                                     {totalPnL >= 0 ? '+' : '-'}₹{Math.abs(totalPnL).toLocaleString()}
                                                 </p>
-                                                <p className={`text-[9px] font-bold mt-1.5 ${totalPnL >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>{totalPnLPercent.toFixed(2)}% ROI</p>
+                                                <div className={`mt-2 inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider ${totalPnL >= 0 ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-rose-50 text-rose-600 border border-rose-100'}`}>
+                                                    {totalPnLPercent.toFixed(2)}% ROI
+                                                </div>
                                             </div>
                                         </div>
                                         <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
@@ -712,8 +714,8 @@ const Portfolio = () => {
                                                                     <p className={`text-sm font-black ${((item.currentPrice - (item.avgPrice || item.averagePrice)) * item.quantity) >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
                                                                         {((item.currentPrice - (item.avgPrice || item.averagePrice)) * item.quantity) >= 0 ? '+' : ''}₹{((item.currentPrice - (item.avgPrice || item.averagePrice)) * item.quantity).toLocaleString()}
                                                                     </p>
-                                                                    <p className={`text-[9px] font-black mt-0.5 ${((item.currentPrice - (item.avgPrice || item.averagePrice)) / (item.avgPrice || item.averagePrice)) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                                                                        {(((item.currentPrice - (item.avgPrice || item.averagePrice)) / (item.avgPrice || item.averagePrice)) * 100).toFixed(2)}%
+                                                                    <p className={`text-[11px] font-black mt-1 ${((item.currentPrice - (item.avgPrice || item.averagePrice)) / (item.avgPrice || item.averagePrice)) >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                                                                        {(((item.currentPrice - (item.avgPrice || item.averagePrice)) / (item.avgPrice || item.averagePrice)) * 100).toFixed(2)}% ROI
                                                                     </p>
                                                                 </td>
                                                                 <td className="px-4 py-4">

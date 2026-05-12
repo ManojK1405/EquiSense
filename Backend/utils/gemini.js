@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import YahooFinance from 'yahoo-finance2';
 import { fetchStockNews } from './news.js';
 import { executeStrategyDeployment } from '../services/execution.service.js';
+import { fetchSafeQuote, fetchSafeSummary } from './market-fetcher.js';
 
 dotenv.config();
 
@@ -15,47 +16,37 @@ const yahooFinance = new YahooFinance({
 const geminiApiKey = process.env.GEMINI_API_KEY;
 const FALLBACK_GEMINI_MODELS = [
     process.env.GEMINI_MODEL,
-    'models/gemini-3-flash-preview',
+    'models/gemini-2.0-flash',
     'models/gemini-2.5-flash',
-    'models/gemini-2.5-pro',
-    'models/gemini-2.0-flash'
+    'models/gemini-flash-latest',
+    'models/gemini-3.1-pro-preview'
 ].filter(Boolean);
 
 const genAI = new GoogleGenerativeAI(geminiApiKey);
-let activeGeminiModel = FALLBACK_GEMINI_MODELS[0] || null;
-
-const getModel = (modelName = activeGeminiModel) => {
-    if (!geminiApiKey) {
-        throw new Error('GEMINI_API_KEY not set');
-    }
-    if (!modelName) {
-        throw new Error('No Gemini model configured');
-    }
-    return genAI.getGenerativeModel({ model: modelName });
-};
+let activeGeminiModel = FALLBACK_GEMINI_MODELS[0] || 'gemini-1.5-flash';
 
 const tryGemini = async (executor) => {
     let lastError;
-
-    for (const modelName of FALLBACK_GEMINI_MODELS) {
-        activeGeminiModel = modelName;
+    const modelsToTry = [...FALLBACK_GEMINI_MODELS];
+    
+    for (const modelName of modelsToTry) {
         try {
-            return await executor(getModel(modelName));
+            const result = await executor(genAI.getGenerativeModel({ model: modelName }));
+            activeGeminiModel = modelName; // Save successful model
+            return result;
         } catch (error) {
             lastError = error;
             const message = String(error?.message || '').toLowerCase();
             const status = error?.status;
 
-            const isModelNotFound = status === 404 || message.includes('not found') || message.includes('no longer available') || message.includes('is not found for api version');
+            const isModelNotFound = status === 404 || message.includes('not found') || message.includes('no longer available') || message.includes('is not found for api version') || message.includes('unsupported model');
             if (isModelNotFound) {
                 console.warn(`[Gemini] model ${modelName} invalid, trying fallback.`, message);
                 continue;
             }
-
             throw error;
         }
     }
-
     throw lastError;
 };
 
@@ -71,9 +62,37 @@ export const generateGeminiText = async (prompt) => {
     });
 };
 
+export const getAIStrategy = generateGeminiText; // Alias for backward compatibility
+
+export const getAIPredictionReasoning = async (symbol, indicators, sentiment, trendAnalysis) => {
+    const prompt = `
+        Persona: Institutional Research Analyst.
+        Objective: Provide a high-conviction quantitative reasoning for ${symbol}.
+        
+        Data points:
+        - Indicators: ${JSON.stringify(indicators)}
+        - Sentiment Score: ${sentiment}
+        - Trend: ${trendAnalysis}
+        
+        Instruction: Synthesize this into a 2-sentence institutional-grade rationale. Focus on the convergence of technicals and sentiment.
+    `;
+    return await generateGeminiText(prompt);
+};
+
+export const extractStockSymbol = async (query) => {
+    const prompt = `
+        Persona: Financial Data Parser.
+        Task: Extract the primary stock ticker symbol from this user query for the Indian market (NSE).
+        Query: "${query}"
+        
+        Rule: Return ONLY the ticker symbol with .NS suffix (e.g., RELIANCE.NS). If no clear symbol, return "NONE".
+    `;
+    const response = await generateGeminiText(prompt);
+    return response.trim().toUpperCase();
+};
+
 /**
  * Analyzes sentiment using FinBERT models via Hugging Face Inference API.
- * Tries multiple models as fallbacks to ensure reliability.
  */
 export const getFinBERTSentiment = async (headlines) => {
     const hfToken = process.env.HF_API_TOKEN;
@@ -96,238 +115,121 @@ export const getFinBERTSentiment = async (headlines) => {
             );
 
             const results = response.data;
+            let score = 0;
 
-            // Handle different output formats (some return nested arrays, others single)
-            let scores = Array.isArray(results[0]) ? results[0] : results;
-
-            if (scores && scores.length) {
-                // Normalize labels as different models use slightly different names
-                const getScore = (labelPart) => {
-                    const found = scores.find(s => {
-                        const l = s.label.toLowerCase();
-                        if (labelPart === 'pos') return l.includes('pos') || l === 'label_2';
-                        if (labelPart === 'neg') return l.includes('neg') || l === 'label_0';
-                        return l.includes(labelPart.toLowerCase());
-                    });
-                    return found ? found.score : 0;
-                };
-
-                const pos = getScore('pos');
-                const neg = getScore('neg');
-                const score = pos - neg;
-                console.log(`[Sentiment] Successfully used FinBERT model: ${model} | Score: ${score.toFixed(2)}`);
-                return score;
+            if (Array.isArray(results[0])) {
+                const labels = results[0];
+                const pos = labels.find(l => l.label.toLowerCase().includes('pos'))?.score || 0;
+                const neg = labels.find(l => l.label.toLowerCase().includes('neg'))?.score || 0;
+                score = pos - neg;
+            } else if (Array.isArray(results)) {
+                const pos = results.find(l => l.label.toLowerCase().includes('pos'))?.score || 0;
+                const neg = results.find(l => l.label.toLowerCase().includes('neg'))?.score || 0;
+                score = pos - neg;
             }
+
+            return score;
         } catch (error) {
-            // Only log if it's the last one or not a 404
-            if (error.response?.status !== 404) {
-                console.warn(`[Sentiment] Model ${model} failed: ${error.message}`);
-            }
-            continue;
+            console.warn(`HF Model ${model} failed, trying fallback...`);
         }
     }
-
     return null;
 };
 
+/**
+ * Enhanced news sentiment analysis using Gemini as a fallback/primary engine.
+ */
 export const getNewsSentiment = async (headlines) => {
     if (!headlines || headlines.length === 0) return 0;
 
-    // 1. Try FinBERT first
-    const finbertScore = await getFinBERTSentiment(headlines);
-    if (finbertScore !== null) {
-        console.log(`[Sentiment] Using FinBERT score: ${finbertScore.toFixed(2)}`);
-        return finbertScore;
-    }
-
-    // 2. Fallback to Gemini
     try {
+        const finBERTScore = await getFinBERTSentiment(headlines);
+        if (finBERTScore !== null) return finBERTScore;
+
         const prompt = `
-            Analyze the following news headlines related to a stock and provide a combined sentiment score between -1 and 1.
-            -1 means extremely negative. 0 means neutral. 1 means extremely positive.
-            Return ONLY the numerical score.
+            Persona: Expert Financial Analyst.
+            Task: Analyze the sentiment of these stock market headlines and return a single precision floating point number between -1.0 (extremely bearish) and 1.0 (extremely bullish).
             
             Headlines:
-            ${headlines.join('\n- ')}
+            ${headlines.map((h, i) => `${i+1}. ${h}`).join('\n')}
+            
+            Rule: Return ONLY the number. No explanation.
         `;
 
-        const text = await generateGeminiText(prompt);
-        const score = parseFloat(text);
+        const response = await generateGeminiText(prompt);
+        const score = parseFloat(response);
         return isNaN(score) ? 0 : score;
     } catch (error) {
-        console.error("Gemini Sentiment Error:", error);
+        console.error('[Sentiment] Engine failure:', error.message);
         return 0;
     }
 };
 
-export const getAIPredictionReasoning = async (symbol, indicators, sentiment, trendAnalysis) => {
-    if (!process.env.GEMINI_API_KEY) return "Technical indicators show a trend based on market volume.";
-
-    try {
-        const systemInstruction = `
-            Persona: Senior Institutional Equity Research Analyst.
-            Objective: Provide a high-fidelity, quantitative verdict for ${symbol}.
-            
-            Mandate:
-            - You have access to tools (get_stock_price, get_stock_fundamentals, get_stock_news_sentiment).
-            - Use them if the provided context is insufficient or to verify live data.
-            - Provide 5 concise points (Trend, Momentum, Flow/Sentiment, Risk-Reward, Verdict).
-            - The **Verdict** point MUST be extremely direct (e.g., **AVOID / BUY / SELL**) and serve as the final executive summary.
-            - Style: Bold key metrics. Decisive tone. Use Telegram-style conciseness.
-            - Total response must be under 150 words.
-        `;
-
-        const context = `Analysis Context for ${symbol}: 
-        Sentiment: ${sentiment}
-        Indicators: ${JSON.stringify(indicators)}
-        Trend Analysis: ${JSON.stringify(trendAnalysis)}`;
-
-        const response = await runAgenticChat(
-            [{ role: 'user', content: `Provide your institutional reasoning for the current ${symbol} analysis. ${context}` }],
-            systemInstruction,
-            'SYSTEM'
-        );
-
-        return response;
-    } catch (error) {
-        console.error("Agentic Reasoning Error:", error);
-        return "Analysis suggests a potential move based on current institutional momentum.";
-    }
-};
-
-export const getAIStrategy = async (prompt) => {
-    if (!process.env.GEMINI_API_KEY) throw new Error('GEMINI_API_KEY not set');
-
-    const attempt = async () => {
-        const text = await generateGeminiText(prompt);
-        return text.replace(/^```json?\s*/i, '').replace(/```\s*$/i, '').trim();
-    };
-
-    try {
-        return await attempt();
-    } catch (err) {
-        const is429 = err?.message?.includes('429') || err?.status === 429;
-        if (is429) {
-            const match = err.message?.match(/retryDelay":"(\d+)s"/);
-            const waitMs = Math.min((parseInt(match?.[1] || '10') + 2) * 1000, 32000);
-            console.warn(`[Gemini] 429 – retrying after ${waitMs / 1000}s…`);
-            await new Promise(r => setTimeout(r, waitMs));
-            return await attempt();
-        }
-        throw err;
-    }
-};
-
-/**
- * Extracts a stock symbol from a natural language query using Gemini AI.
- * @param {string} query - The user's search query (e.g. "Reliance industries", "Show me TCS price")
- * @returns {Promise<string|null>} - The extracted symbol (e.g. "RELIANCE.NS") or null
- */
-export const extractStockSymbol = async (query) => {
-    if (!process.env.GEMINI_API_KEY) return null;
-
-    try {
-        const prompt = `
-            Your task is to identify a specific stock symbol based on the user's query.
-            
-            Query: "${query}"
-            
-            Guidelines:
-            1. If the query mentions a specific company (e.g., "Reliance", "Tata Motors", "Apple"), find its primary trading symbol.
-            2. If the query is descriptive (e.g., "biggest market cap stock in India", "largest tech company"), identify the relevant stock (e.g., RELIANCE.NS, AAPL).
-            3. For Indian stocks, ALWAYS append the ".NS" suffix for NSE (e.g., TCS.NS, SBIN.NS).
-            4. For US stocks, use the standard ticker (e.g., TSLA, MSFT).
-            5. Return ONLY the symbol string. Do not include any explanation or punctuation.
-            6. If you cannot identify a specific stock, return "NULL".
-            
-            Target Symbol:
-        `;
-
-        const text = await generateGeminiText(prompt);
-        const symbol = text.trim().split(' ')[0].replace(/[^A-Za-z0-9.]/g, ''); // Clean any hallucinations
-
-        if (!symbol || symbol.toUpperCase() === "NULL") return null;
-        return symbol.toUpperCase();
-    } catch (error) {
-        console.error("Gemini Symbol Extraction Error:", error);
-        return null;
-    }
-};
-
-// --- AGENTIC RAG (FUNCTION CALLING) ADDITIONS ---
-
 const agentTools = [
-  {
-    functionDeclarations: [
-      {
-        name: "get_stock_price",
-        description: "Fetches live price, valuation (P/E), 52-week high/low, and moving averages for a stock.",
-        parameters: {
-          type: "OBJECT",
-          properties: {
-            symbol: { type: "STRING", description: "The stock symbol with exchange suffix (e.g., RELIANCE.NS, TSLA)" }
-          },
-          required: ["symbol"],
-        },
-      },
-      {
-        name: "get_stock_fundamentals",
-        description: "Fetches detailed financial ratios like Debt-to-Equity, ROE, and Dividend Yield.",
-        parameters: {
-          type: "OBJECT",
-          properties: {
-            symbol: { type: "STRING", description: "The stock symbol" }
-          },
-          required: ["symbol"],
-        },
-      },
-      {
-        name: "get_stock_news_sentiment",
-        description: "Fetches latest news headlines and a sentiment score (-1 to 1).",
-        parameters: {
-          type: "OBJECT",
-          properties: {
-             symbol: { type: "STRING", description: "The stock symbol" }
-          },
-          required: ["symbol"],
-        }
-      },
-      {
-        name: "deploy_investment_strategy",
-        description: "Executes a multi-stock investment strategy for a specific amount. Only call this after user confirms the amount and mode.",
-        parameters: {
-          type: "OBJECT",
-          properties: {
-             amount: { type: "NUMBER", description: "The total amount to invest (e.g., 10000)" },
-             mode: { type: "STRING", enum: ["mock", "live"], description: "The trading mode" }
-          },
-          required: ["amount", "mode"],
-        }
-      }
-    ],
-  },
+    {
+        functionDeclarations: [
+            {
+                name: "get_stock_price",
+                description: "Get current market price for a stock symbol (e.g., RELIANCE.NS)",
+                parameters: {
+                    type: "object",
+                    properties: {
+                        symbol: { type: "string", description: "The stock ticker symbol with .NS suffix for Indian stocks" }
+                    },
+                    required: ["symbol"]
+                }
+            },
+            {
+                name: "get_stock_fundamentals",
+                description: "Get fundamental data (P/E, Market Cap, etc.) for a stock symbol",
+                parameters: {
+                    type: "object",
+                    properties: {
+                        symbol: { type: "string", description: "The stock ticker symbol" }
+                    },
+                    required: ["symbol"]
+                }
+            },
+            {
+                name: "get_stock_news_sentiment",
+                description: "Get recent news headlines and sentiment score for a stock",
+                parameters: {
+                    type: "object",
+                    properties: {
+                        symbol: { type: "string", description: "The stock ticker symbol" }
+                    },
+                    required: ["symbol"]
+                }
+            },
+            {
+                name: "deploy_investment_strategy",
+                description: "Execute and save a generated investment strategy to the user's portfolio vault",
+                parameters: {
+                    type: "object",
+                    properties: {
+                        amount: { type: "number", description: "Total capital to deploy" },
+                        mode: { type: "string", enum: ["mock", "live"], description: "Deployment mode" }
+                    },
+                    required: ["amount", "mode"]
+                }
+            }
+        ]
+    }
 ];
 
-const executeAgentTool = async (functionCall, userId) => {
-    const { name, args } = functionCall;
+const executeAgentTool = async (call, userId) => {
+    const { name, args } = call;
     console.log(`[Agent] Executing tool: ${name} with args:`, args);
 
     if (name === "get_stock_price") {
         try {
-            const quote = await yahooFinance.quote(args.symbol);
+            const quote = await fetchSafeQuote(args.symbol);
+            if (!quote) throw new Error("Price data unavailable");
             return {
                 symbol: args.symbol,
                 price: quote.regularMarketPrice,
-                currency: quote.currency,
-                peRatio: quote.trailingPE || 'N/A',
-                fiftyTwoWeekHigh: quote.fiftyTwoWeekHigh,
-                fiftyTwoWeekLow: quote.fiftyTwoWeekLow,
-                marketCap: quote.marketCap,
-                volume: quote.regularMarketVolume,
-                averageVolume: quote.averageDailyVolume10Day,
-                twoHundredDayAverage: quote.twoHundredDayAverage,
-                fiftyDayAverage: quote.fiftyDayAverage,
-                priceToBook: quote.priceToBook
+                change: quote.regularMarketChangePercent,
+                currency: quote.currency
             };
         } catch (error) {
             return { error: `Failed to fetch price for ${args.symbol}: ${error.message}` };
@@ -336,17 +238,13 @@ const executeAgentTool = async (functionCall, userId) => {
 
     if (name === "get_stock_fundamentals") {
         try {
-            const summary = await yahooFinance.quoteSummary(args.symbol, { 
-                modules: ["financialData", "defaultKeyStatistics"] 
-            });
+            const summary = await fetchSafeSummary(args.symbol, ['defaultKeyStatistics', 'financialData']);
+            if (!summary) throw new Error("Fundamental data unavailable");
             return {
                 symbol: args.symbol,
-                debtToEquity: summary.financialData?.debtToEquity,
-                returnOnEquity: summary.financialData?.returnOnEquity,
-                currentRatio: summary.financialData?.currentRatio,
-                grossProfits: summary.financialData?.grossProfits,
-                dividendYield: summary.defaultKeyStatistics?.dividendYield,
-                beta: summary.defaultKeyStatistics?.beta
+                pe: summary.defaultKeyStatistics?.trailingPE || "N/A",
+                marketCap: summary.defaultKeyStatistics?.marketCap || "N/A",
+                currentPrice: summary.financialData?.currentPrice || "N/A"
             };
         } catch (error) {
             return { error: `Failed to fetch fundamentals for ${args.symbol}: ${error.message}` };
@@ -383,66 +281,62 @@ const executeAgentTool = async (functionCall, userId) => {
 };
 
 export const runAgenticChat = async (messages, systemInstruction, userId) => {
-    if (!process.env.GEMINI_API_KEY || FALLBACK_GEMINI_MODELS.length === 0) {
+    if (!geminiApiKey || FALLBACK_GEMINI_MODELS.length === 0) {
         throw new Error('Gemini configuration unavailable');
     }
 
-    const modelName = activeGeminiModel || FALLBACK_GEMINI_MODELS[0];
-    console.log(`[Agentic Chat] Using model: ${modelName}`);
-    const model = genAI.getGenerativeModel({
-        model: modelName,
-        systemInstruction: {
-            parts: [{ text: systemInstruction }]
-        },
-        tools: agentTools
-    });
+    return await tryGemini(async (modelWithNoTools) => {
+        const model = genAI.getGenerativeModel({
+            model: modelWithNoTools.model,
+            systemInstruction: {
+                parts: [{ text: systemInstruction }]
+            },
+            tools: agentTools
+        });
 
-    let history = messages.slice(0, -1).map(m => ({
-        role: m.role === 'assistant' ? 'model' : 'user',
-        parts: [{ text: m.content }]
-    }));
+        let history = messages.slice(0, -1).map(m => {
+            let role = 'user';
+            if (m.role === 'assistant' || m.role === 'model') role = 'model';
+            return { role, parts: [{ text: m.content }] };
+        });
 
-    console.log(`[Agentic Chat] History length: ${history.length}`);
-    
-    // CRITICAL: Gemini history MUST start with a 'user' role. 
-    // If the first message is from the assistant/model, we skip it for the history.
-    if (history.length > 0 && history[0].role === 'model') {
-        console.log('[Agentic Chat] Removing leading model message from history');
-        history = history.slice(1);
-    }
-
-    const latestMessage = messages[messages.length - 1].content;
-    console.log(`[Agentic Chat] Latest message: ${latestMessage}`);
-
-    const chatSession = model.startChat({ history });
-
-    let result = await chatSession.sendMessage(latestMessage);
-    let response = await result.response;
-
-    // Execution Loop for Function Calling (Handles multiple parallel tool calls)
-    let functionCalls = response.functionCalls ? response.functionCalls() : [];
-    
-    while (functionCalls && functionCalls.length > 0) {
-        const toolResponses = [];
-        
-        // Execute all requested tools in parallel
-        for (const call of functionCalls) {
-            const apiResponse = await executeAgentTool(call, userId);
-            toolResponses.push({
-                functionResponse: {
-                    name: call.name,
-                    response: apiResponse
-                }
-            });
+        if (history.length > 0 && history[0].role === 'model') {
+            history = history.slice(1);
         }
 
-        // Send all tool results back to Gemini in one go
-        result = await chatSession.sendMessage(toolResponses);
-        response = await result.response;
-        functionCalls = response.functionCalls ? response.functionCalls() : [];
-    }
+        const sanitizedHistory = [];
+        for (let i = 0; i < history.length; i++) {
+            if (i === 0 || history[i].role !== history[i-1].role) {
+                sanitizedHistory.push(history[i]);
+            } else {
+                sanitizedHistory[sanitizedHistory.length - 1].parts[0].text += "\n\n" + history[i].parts[0].text;
+            }
+        }
 
-    const finalResponse = response.text().trim();
-    console.log(`[Agentic Chat] Final Response length: ${finalResponse.length}`);
-    return finalResponse;
+        const latestMessage = messages[messages.length - 1].content;
+        const chatSession = model.startChat({ history: sanitizedHistory });
+
+        let result = await chatSession.sendMessage(latestMessage);
+        let response = await result.response;
+
+        let functionCalls = response.functionCalls ? response.functionCalls() : [];
+        
+        while (functionCalls && functionCalls.length > 0) {
+            const toolResponses = [];
+            for (const call of functionCalls) {
+                const apiResponse = await executeAgentTool(call, userId);
+                toolResponses.push({
+                    functionResponse: {
+                        name: call.name,
+                        response: apiResponse
+                    }
+                });
+            }
+            result = await chatSession.sendMessage(toolResponses);
+            response = await result.response;
+            functionCalls = response.functionCalls ? response.functionCalls() : [];
+        }
+
+        return response.text().trim();
+    });
 };

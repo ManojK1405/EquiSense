@@ -2,9 +2,11 @@ import YahooFinance from 'yahoo-finance2';
 import { analyzeStock } from '../utils/analysis.js';
 import { fetchStockNews } from '../utils/news.js';
 import { getNewsSentiment, getAIPredictionReasoning } from '../utils/gemini.js';
+import { fetchSafeQuote, fetchSafeSummary } from '../utils/market-fetcher.js';
+
 const yahooFinance = new YahooFinance({ 
     suppressNotices: ['yahooSurvey'],
-    validation: { logErrors: false } // Reduce noise from intermittent schema mismatches
+    validation: { logErrors: false }
 });
 
 export const getStockPrediction = async (req, res) => {
@@ -15,7 +17,6 @@ export const getStockPrediction = async (req, res) => {
       try {
           const searchResult = await yahooFinance.search(symbol);
           if (searchResult && searchResult.quotes && searchResult.quotes.length > 0) {
-              // Prefer exact matching prefix, then any Indian stock
               const exactMatch = searchResult.quotes.find(q => 
                   q.symbol === `${symbol.toUpperCase()}.NS` || 
                   q.symbol === `${symbol.toUpperCase()}.BO`
@@ -39,29 +40,36 @@ export const getStockPrediction = async (req, res) => {
   console.log(`--- Fetching Fresh Analysis for: ${symbol} ---`);
 
   try {
-    // 1. Fetch Company Metadata & Institutional Quote
-    console.log(`Fetching metadata for ${symbol}...`);
-    const quote = await yahooFinance.quote(symbol).catch(err => {
-       console.error("Yahoo Quote Error:", err.message);
-       return null;
-    });
+    // 1. Fetch Company Metadata & Institutional Quote (Hardened for Production)
+    console.log(`Fetching quote for ${symbol}...`);
+    let quote = await fetchSafeQuote(symbol);
+    
+    // Fallback to library if safe fetcher fails
+    if (!quote) {
+      console.warn(`[Prediction] Safe quote failed for ${symbol}, falling back to library.`);
+      quote = await yahooFinance.quote(symbol).catch(err => {
+         console.error("Yahoo Quote Error:", err.message);
+         return null;
+      });
+    }
 
-    const companyName = quote?.longName || symbol;
+    const companyName = quote?.longName || quote?.shortName || symbol;
     const sector = quote?.sector || quote?.industry || null;
 
-    // 1b. Fetch Extended Company Profile & Financials
-    console.log(`Fetching profile & financials for ${symbol}...`);
-    const summaryResult = await yahooFinance.quoteSummary(symbol, { 
-      modules: [
-        'summaryProfile', 
-        'financialData', 
-        'defaultKeyStatistics',
-        'majorHoldersBreakdown'
-      ] 
-    }).catch(err => {
-       console.error("Yahoo Summary Error:", err.message);
-       return null;
-    });
+    // 1b. Fetch Extended Company Profile & Financials (Hardened for Production)
+    console.log(`Fetching summary for ${symbol}...`);
+    let summaryResult = await fetchSafeSummary(symbol);
+    
+    // Fallback to library
+    if (!summaryResult) {
+      console.warn(`[Prediction] Safe summary failed for ${symbol}, falling back to library.`);
+      summaryResult = await yahooFinance.quoteSummary(symbol, { 
+        modules: ['summaryProfile', 'financialData', 'defaultKeyStatistics', 'majorHoldersBreakdown'] 
+      }).catch(err => {
+         console.error("Yahoo Summary Error:", err.message);
+         return null;
+      });
+    }
 
     const profile = summaryResult?.summaryProfile || {};
     const financials = summaryResult?.financialData || {};
@@ -147,7 +155,7 @@ export const getStockPrediction = async (req, res) => {
       analysis.fundamentals = { marketCap: 0, peRatio: 0, dividendYield: 0, beta: 0, eps: 0, marketState: 'N/A', fiftyTwoWeekHigh: 0, fiftyTwoWeekLow: 0, regularMarketVolume: 0, regularMarketOpen: 0, regularMarketChangePercent: 0 };
     }
 
-    // Assemble final structured response
+    // 4. Assemble final structured response with high-fidelity fallbacks
     const finalResult = {
       ...analysis,
       profile: {
@@ -159,15 +167,15 @@ export const getStockPrediction = async (req, res) => {
         city: profile.city || "N/A"
       },
       fundamentals: {
-        marketCap: quote?.marketCap || 0,
-        peRatio: quote?.trailingPE || quote?.forwardPE || 0,
-        dividendYield: quote?.dividendYield || 0,
-        beta: quote?.beta || 0,
-        eps: quote?.trailingEps || 0,
+        marketCap: quote?.marketCap || stats.marketCap || stats.enterpriseValue || 0,
+        peRatio: quote?.trailingPE || quote?.forwardPE || stats.trailingPE || stats.forwardPE || 0,
+        dividendYield: quote?.dividendYield || stats.dividendYield || financials.dividendYield || 0,
+        beta: quote?.beta || stats.beta || 0,
+        eps: quote?.trailingEps || stats.trailingEps || stats.forwardEps || 0,
         marketState: quote?.marketState || 'N/A',
-        fiftyTwoWeekHigh: quote?.fiftyTwoWeekHigh || 0,
-        fiftyTwoWeekLow: quote?.fiftyTwoWeekLow || 0,
-        regularMarketVolume: quote?.regularMarketVolume || 0,
+        fiftyTwoWeekHigh: quote?.fiftyTwoWeekHigh || stats.fiftyTwoWeekHigh || 0,
+        fiftyTwoWeekLow: quote?.fiftyTwoWeekLow || stats.fiftyTwoWeekLow || 0,
+        regularMarketVolume: quote?.regularMarketVolume || financials.volume || 0,
         regularMarketOpen: quote?.regularMarketOpen || 0,
         regularMarketChangePercent: quote?.regularMarketChangePercent || 0,
         roe: financials.returnOnEquity || 0,
@@ -178,12 +186,10 @@ export const getStockPrediction = async (req, res) => {
         profitMargins: financials.profitMargins || 0,
         bookValue: stats.bookValue || 0,
         priceToBook: stats.priceToBook || 0,
-        // New Financials
         totalRevenue: financials.totalRevenue || 0,
-        netIncome: financials.netIncomeToCommon || 0,
+        netIncome: financials.netIncomeToCommon || financials.netIncome || 0,
         ebitda: financials.ebitda || 0,
         operatingMargins: financials.operatingMargins || 0,
-        // New Holdings
         insiderHolding: holdings.insidersPercent || 0,
         institutionsHolding: holdings.institutionsPercent || 0,
         institutionsCount: holdings.institutionsCount || 0

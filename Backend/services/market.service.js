@@ -106,7 +106,7 @@ export const getMarketSummaryData = async () => {
             { name: 'FMCG', sym: '^CNXFMCG' }
         ];
         const sectorQuotes = await Promise.all(
-            sectorSymbols.map(s => yahooFinance.quote(s.sym).catch(() => null))
+            sectorSymbols.map(s => fetchSafeQuote(s.sym))
         );
         sectorGainers = sectorSymbols.map((s, i) => ({
             name: s.name,
@@ -126,7 +126,7 @@ export const getMarketSummaryData = async () => {
             { name: 'FTSE 100', sym: '^FTSE' }
         ];
         const globalQuotes = await Promise.all(
-            globalSymbols.map(s => yahooFinance.quote(s.sym).catch(() => null))
+            globalSymbols.map(s => fetchSafeQuote(s.sym))
         );
         globalIndices = globalSymbols.map((s, i) => ({
             name: s.name,

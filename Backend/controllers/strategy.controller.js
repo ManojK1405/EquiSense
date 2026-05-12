@@ -42,44 +42,78 @@ async function getDynamicSymbols(sector, count = 8) {
 
 const NIFTY_INDICES = ['^NSEI', '^NSEBANK'];
 
+import { fetchSafeQuote, fetchSafeSummary } from '../utils/market-fetcher.js';
+
 async function fetchMomentum(symbol) {
   try {
     const endDate = new Date();
     const startDate = new Date();
     startDate.setDate(endDate.getDate() - 35);
 
+    // Chart is usually less restricted, but we still catch errors
     const chart = await yahooFinance.chart(symbol, {
       period1: startDate.toISOString().split('T')[0],
       interval: '1d',
     }).catch(() => null);
 
-    if (!chart?.quotes || chart.quotes.length < 5) return null;
+    let latestPrice;
+    let oldestPrice;
+    let quotes = [];
 
-    const quotes = chart.quotes.filter(q => q.close != null);
-    const latest = quotes[quotes.length - 1];
-    const oldest = quotes[0];
-    const returnPct = (((latest.close - oldest.close) / oldest.close) * 100).toFixed(2);
-    const avgVol = quotes.reduce((s, q) => s + (q.volume || 0), 0) / quotes.length;
-    const volTrend = (latest.volume || 0) > avgVol ? 'Rising' : 'Falling';
+    if (chart?.quotes && chart.quotes.length >= 5) {
+      quotes = chart.quotes.filter(q => q.close != null);
+      latestPrice = quotes[quotes.length - 1].close;
+      oldestPrice = quotes[0].close;
+    } else {
+      // Fallback: Use safe quote for current price if chart fails
+      const q = await fetchSafeQuote(symbol);
+      if (!q) return null;
+      latestPrice = q.regularMarketPrice;
+      oldestPrice = latestPrice; // Limited info
+    }
 
-    return { symbol, currentPrice: latest.close, returnPct: parseFloat(returnPct), volumeTrend: volTrend };
-  } catch {
+    const returnPct = oldestPrice > 0 ? (((latestPrice - oldestPrice) / oldestPrice) * 100).toFixed(2) : 0;
+    const avgVol = quotes.length > 0 ? (quotes.reduce((s, q) => s + (q.volume || 0), 0) / quotes.length) : 0;
+    
+    return { 
+      symbol, 
+      currentPrice: latestPrice, 
+      returnPct: parseFloat(returnPct), 
+      volumeTrend: 'Stable' 
+    };
+  } catch (err) {
+    console.error(`[StrategyMomentum] Error for ${symbol}:`, err.message);
     return null;
   }
 }
 
 async function fetchQuoteSummary(symbol) {
   try {
-    const quote = await yahooFinance.quote(symbol).catch(() => null);
-    if (!quote) return null;
+    // Use hardened summary fetcher
+    let summary = await fetchSafeSummary(symbol, ['summaryProfile', 'financialData', 'defaultKeyStatistics']);
+    
+    if (!summary) {
+       // Fallback to library
+       summary = await yahooFinance.quoteSummary(symbol, { 
+         modules: ['summaryProfile', 'financialData', 'defaultKeyStatistics'] 
+       }).catch(() => null);
+    }
+
+    if (!summary) return null;
+
+    const profile = summary.summaryProfile || {};
+    const financials = summary.financialData || {};
+    const stats = summary.defaultKeyStatistics || {};
+
     return {
       symbol,
-      name: quote.longName || quote.shortName || symbol,
-      price: quote.regularMarketPrice || 0,
-      pe: quote.trailingPE || 0,
-      marketCap: quote.marketCap || 0,
+      name: profile.longName || profile.shortName || symbol,
+      price: financials.currentPrice || financials.regularMarketPrice || 0,
+      pe: stats.trailingPE || stats.forwardPE || 0,
+      marketCap: stats.marketCap || stats.enterpriseValue || 0,
     };
-  } catch {
+  } catch (err) {
+    console.error(`[StrategySummary] Error for ${symbol}:`, err.message);
     return null;
   }
 }
@@ -125,12 +159,17 @@ export const generateStrategy = async (req, res) => {
         "marketOutlook": "String (1 paragraph analysis)",
         "executionGuidance": "String (Technical entry levels)"
       }
-    `;
-
-    const response = await runAgenticChat([{ role: 'user', content: 'Generate my investment blueprint now.' }], systemInstruction, req.userId);
+    `;    const response = await runAgenticChat([{ role: 'user', content: 'Generate my investment blueprint now.' }], systemInstruction, req.userId);
     
-    // Clean JSON response (strip markdown backticks if any)
-    const cleaned = response.replace(/```json|```/g, '').trim();
+    // Improved JSON extraction: Find the first '{' and the last '}'
+    const firstBrace = response.indexOf('{');
+    const lastBrace = response.lastIndexOf('}');
+    
+    if (firstBrace === -1 || lastBrace === -1) {
+       throw new Error('AI failed to produce a valid strategy structure.');
+    }
+
+    const cleaned = response.substring(firstBrace, lastBrace + 1);
     res.json(JSON.parse(cleaned));
   } catch (error) {
     console.error('[Generate Strategy] Error:', error.message);
@@ -170,13 +209,22 @@ export const generateIntradayPulse = async (req, res) => {
     `;
 
     const response = await runAgenticChat([{ role: 'user', content: 'Give me the intraday pulse now.' }], systemInstruction, req.userId);
-    const cleaned = response.replace(/```json|```/g, '').trim();
+    
+    const firstBrace = response.indexOf('{');
+    const lastBrace = response.lastIndexOf('}');
+    
+    if (firstBrace === -1 || lastBrace === -1) {
+       throw new Error('AI failed to produce a valid intraday report.');
+    }
+
+    const cleaned = response.substring(firstBrace, lastBrace + 1);
     res.json(JSON.parse(cleaned));
   } catch (error) {
     console.error('[Intraday Pulse] Error:', error.message);
     res.status(500).json({ error: 'Intraday engine failure.' });
   }
-};export const refreshIntradayPulseCache = async () => {
+};
+export const refreshIntradayPulseCache = async () => {
   console.log('[Agent] Skipping background refresh; switching to real-time agentic pulse.');
 };
 
