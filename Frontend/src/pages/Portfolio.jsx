@@ -135,6 +135,20 @@ const Portfolio = () => {
     };
 
     useEffect(() => {
+        // 2-Step Login Optimization: Check for pre-fetched data
+        const initialDataRaw = localStorage.getItem('initial_dashboard_data');
+        if (initialDataRaw) {
+            try {
+                const initialData = JSON.parse(initialDataRaw);
+                if (initialData.portfolio) {
+                    setPortfolio(initialData.portfolio);
+                    setLoading(false); // Stop skeleton immediately
+                }
+            } catch (e) {
+                console.error('Failed to parse initial portfolio data', e);
+            }
+        }
+        
         fetchData();
     }, [mode, user]);
 

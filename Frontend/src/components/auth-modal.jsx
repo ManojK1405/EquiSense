@@ -5,8 +5,10 @@ import { useAuth } from '../context/AuthContext';
 import { GoogleLogin } from '@react-oauth/google';
 
 const AuthModal = () => {
-  const { showAuthModal, setShowAuthModal, login, signup, googleLogin } = useAuth();
+  const { showAuthModal, setShowAuthModal, login, signup, googleLogin, checkUser } = useAuth();
   const [isLogin, setIsLogin] = useState(true);
+  const [step, setStep] = useState(1); // 1: Email, 2: Password
+  const [foundUser, setFoundUser] = useState(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
@@ -15,6 +17,29 @@ const AuthModal = () => {
   const [showPassword, setShowPassword] = useState(false);
 
   if (!showAuthModal) return null;
+
+  const handleNextStep = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+    try {
+      if (isLogin) {
+        const userData = await checkUser(email);
+        if (userData) {
+          setFoundUser(userData);
+          setStep(2);
+        } else {
+          setError('Account not found. Would you like to sign up?');
+        }
+      } else {
+        setStep(2); // For signup, just move to password
+      }
+    } catch (err) {
+      setError('Connection failed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -42,6 +67,13 @@ const AuthModal = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const toggleAuthMode = () => {
+    setIsLogin(!isLogin);
+    setStep(1);
+    setFoundUser(null);
+    setError('');
   };
 
   return (
@@ -76,38 +108,60 @@ const AuthModal = () => {
               <X className="w-5 h-5" />
             </button>
 
-            {/* Logo/Icon */}
-            <div className="w-14 h-14 bg-gradient-to-br from-rose-500 to-orange-500 rounded-[20px] flex items-center justify-center text-white mb-6 shadow-xl shadow-rose-500/20">
-               <Zap className="w-7 h-7 fill-current" />
-            </div>
+            {/* Logo/Icon or Avatar */}
+            {foundUser && step === 2 ? (
+                <motion.div 
+                  initial={{ scale: 0.8, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  className="w-20 h-20 rounded-[24px] overflow-hidden border-4 border-white shadow-2xl mb-6 bg-slate-100 flex items-center justify-center"
+                >
+                    {foundUser.avatar ? (
+                        <img src={foundUser.avatar} alt={foundUser.name} className="w-full h-full object-cover" />
+                    ) : (
+                        <div className="w-full h-full bg-gradient-to-br from-rose-500 to-orange-500 flex items-center justify-center text-white text-2xl font-black">
+                           {foundUser.name[0].toUpperCase()}
+                        </div>
+                    )}
+                </motion.div>
+            ) : (
+                <div className="w-14 h-14 bg-gradient-to-br from-rose-500 to-orange-500 rounded-[20px] flex items-center justify-center text-white mb-6 shadow-xl shadow-rose-500/20">
+                   <Zap className="w-7 h-7 fill-current" />
+                </div>
+            )}
 
             {/* Header */}
             <div className="text-center mb-10 w-full">
                <h3 className="text-2xl font-black text-slate-900 tracking-tight mb-2">
-                  {isLogin ? 'Welcome Back' : 'Create Account'}
+                  {step === 1 ? (isLogin ? 'Welcome Back' : 'Create Account') : (isLogin ? `Hi, ${foundUser?.name?.split(' ')[0]}` : 'Secure Account')}
                </h3>
                <p className="text-sm font-medium text-slate-500">
-                  {isLogin ? 'Enter your credentials to access your terminal.' : 'Join the institutional trading platform.'}
+                  {step === 1 
+                    ? (isLogin ? 'Enter your email to access your terminal.' : 'Join the institutional trading platform.')
+                    : (isLogin ? 'Please verify your credentials to continue.' : 'Set a strong password for your vault.')}
                </p>
             </div>
 
-            {/* Google Login */}
-            <div className="w-full flex justify-center mb-6">
-              <GoogleLogin
-                onSuccess={handleGoogleSuccess}
-                onError={() => setError('Google Login Failed')}
-                theme="outline"
-                shape="pill"
-                size="large"
-                text={isLogin ? 'signin_with' : 'signup_with'}
-              />
-            </div>
+            {/* Google Login (Only on Step 1) */}
+            {step === 1 && (
+                <>
+                    <div className="w-full flex justify-center mb-6">
+                      <GoogleLogin
+                        onSuccess={handleGoogleSuccess}
+                        onError={() => setError('Google Login Failed')}
+                        theme="outline"
+                        shape="pill"
+                        size="large"
+                        text={isLogin ? 'signin_with' : 'signup_with'}
+                      />
+                    </div>
 
-            <div className="w-full flex items-center gap-4 mb-6">
-              <div className="flex-1 h-px bg-slate-100"></div>
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Or continue with email</span>
-              <div className="flex-1 h-px bg-slate-100"></div>
-            </div>
+                    <div className="w-full flex items-center gap-4 mb-6">
+                      <div className="flex-1 h-px bg-slate-100"></div>
+                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Or continue with email</span>
+                      <div className="flex-1 h-px bg-slate-100"></div>
+                    </div>
+                </>
+            )}
 
             {error && (
               <motion.div 
@@ -118,60 +172,74 @@ const AuthModal = () => {
               </motion.div>
             )}
 
-            <form onSubmit={handleSubmit} className="space-y-4 w-full">
-              {!isLogin && (
+            <form onSubmit={step === 1 ? handleNextStep : handleSubmit} className="space-y-4 w-full">
+              {step === 1 ? (
+                <>
+                  {!isLogin && (
+                    <div className="space-y-1.5">
+                       <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Full Name</label>
+                       <div className="relative">
+                         <User className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                         <input
+                           type="text"
+                           placeholder="John Doe"
+                           required
+                           value={name}
+                           onChange={(e) => setName(e.target.value)}
+                           className="w-full pl-12 pr-6 py-3.5 rounded-2xl bg-slate-50 border border-slate-100 text-slate-900 font-bold focus:border-rose-400 focus:bg-white focus:ring-4 focus:ring-rose-500/5 focus:outline-none transition-all placeholder:text-slate-300 placeholder:font-medium"
+                         />
+                       </div>
+                    </div>
+                  )}
+                  
+                  <div className="space-y-1.5">
+                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Email Address</label>
+                     <div className="relative">
+                       <Mail className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                       <input
+                         type="email"
+                         placeholder="name@company.com"
+                         required
+                         value={email}
+                         onChange={(e) => setEmail(e.target.value)}
+                         className="w-full pl-12 pr-6 py-3.5 rounded-2xl bg-slate-50 border border-slate-100 text-slate-900 font-bold focus:border-rose-400 focus:bg-white focus:ring-4 focus:ring-rose-500/5 focus:outline-none transition-all placeholder:text-slate-300 placeholder:font-medium"
+                       />
+                     </div>
+                  </div>
+                </>
+              ) : (
                 <div className="space-y-1.5">
-                   <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Full Name</label>
+                   <div className="flex items-center justify-between ml-1">
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Password</label>
+                      <button 
+                        type="button" 
+                        onClick={() => setStep(1)}
+                        className="text-[10px] font-black text-rose-500 uppercase tracking-widest hover:underline"
+                      >
+                         Change Email
+                      </button>
+                   </div>
                    <div className="relative">
-                     <User className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                     <Lock className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                      <input
-                       type="text"
-                       placeholder="John Doe"
+                       type={showPassword ? "text" : "password"}
+                       placeholder="••••••••"
                        required
-                       value={name}
-                       onChange={(e) => setName(e.target.value)}
-                       className="w-full pl-12 pr-6 py-3.5 rounded-2xl bg-slate-50 border border-slate-100 text-slate-900 font-bold focus:border-rose-400 focus:bg-white focus:ring-4 focus:ring-rose-500/5 focus:outline-none transition-all placeholder:text-slate-300 placeholder:font-medium"
+                       autoFocus
+                       value={password}
+                       onChange={(e) => setPassword(e.target.value)}
+                       className="w-full pl-12 pr-12 py-3.5 rounded-2xl bg-slate-50 border border-slate-100 text-slate-900 font-bold focus:border-rose-400 focus:bg-white focus:ring-4 focus:ring-rose-500/5 focus:outline-none transition-all placeholder:text-slate-300 placeholder:font-medium"
                      />
+                     <button
+                       type="button"
+                       onClick={() => setShowPassword(!showPassword)}
+                       className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                     >
+                       {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                     </button>
                    </div>
                 </div>
               )}
-              
-              <div className="space-y-1.5">
-                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Email Address</label>
-                 <div className="relative">
-                   <Mail className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                   <input
-                     type="email"
-                     placeholder="name@company.com"
-                     required
-                     value={email}
-                     onChange={(e) => setEmail(e.target.value)}
-                     className="w-full pl-12 pr-6 py-3.5 rounded-2xl bg-slate-50 border border-slate-100 text-slate-900 font-bold focus:border-rose-400 focus:bg-white focus:ring-4 focus:ring-rose-500/5 focus:outline-none transition-all placeholder:text-slate-300 placeholder:font-medium"
-                   />
-                 </div>
-              </div>
-
-              <div className="space-y-1.5">
-                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Password</label>
-                 <div className="relative">
-                   <Lock className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                   <input
-                     type={showPassword ? "text" : "password"}
-                     placeholder="••••••••"
-                     required
-                     value={password}
-                     onChange={(e) => setPassword(e.target.value)}
-                     className="w-full pl-12 pr-12 py-3.5 rounded-2xl bg-slate-50 border border-slate-100 text-slate-900 font-bold focus:border-rose-400 focus:bg-white focus:ring-4 focus:ring-rose-500/5 focus:outline-none transition-all placeholder:text-slate-300 placeholder:font-medium"
-                   />
-                   <button
-                     type="button"
-                     onClick={() => setShowPassword(!showPassword)}
-                     className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
-                   >
-                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                   </button>
-                 </div>
-              </div>
 
               <button
                 type="submit"
@@ -182,7 +250,7 @@ const AuthModal = () => {
                   <Loader2 className="w-5 h-5 animate-spin" />
                 ) : (
                   <>
-                    {isLogin ? 'Access Terminal' : 'Create Credentials'}
+                    {step === 1 ? 'Continue' : (isLogin ? 'Access Terminal' : 'Create Credentials')}
                     <ArrowRight className="w-4 h-4" />
                   </>
                 )}
@@ -191,7 +259,7 @@ const AuthModal = () => {
 
             <div className="mt-8 text-center">
               <button
-                onClick={() => setIsLogin(!isLogin)}
+                onClick={toggleAuthMode}
                 className="text-xs font-bold text-slate-500 hover:text-rose-500 transition-colors"
               >
                 {isLogin ? "Don't have an account? Sign Up" : "Already have an account? Sign In"}

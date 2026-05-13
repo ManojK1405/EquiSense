@@ -42,6 +42,22 @@ export const signup = async (req, res) => {
   }
 };
 
+export const checkUser = async (req, res) => {
+  const { email } = req.body;
+  try {
+    const user = await prisma.user.findUnique({ 
+      where: { email },
+      select: { name: true, avatar: true }
+    });
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    res.json(user);
+  } catch (error) {
+    res.status(500).json({ message: 'Error checking user' });
+  }
+};
+
 export const login = async (req, res) => {
   const { email, password } = req.body;
 
@@ -51,15 +67,49 @@ export const login = async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
+    if (!user.password) {
+      return res.status(400).json({ message: 'This account uses Google Login. Please sign in with Google.' });
+    }
+
     const isPasswordCorrect = await bcrypt.compare(password, user.password);
     if (!isPasswordCorrect) {
       return res.status(400).json({ message: 'Invalid credentials' });
     }
 
+    // Optimization: Fetch initial dashboard data to reduce loading time
+    const [portfolioItems, recentAnalyses] = await Promise.all([
+      prisma.portfolioItem.findMany({
+        where: { userId: user.id },
+        include: { stock: { select: { symbol: true } } },
+        take: 10
+      }),
+      prisma.recentAnalysis.findMany({
+        where: { userId: user.id },
+        orderBy: { analyzedAt: 'desc' },
+        take: 5
+      })
+    ]);
+
     const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET || 'secret', { expiresIn: '7d' });
 
+    const userPayload = {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      avatar: user.avatar,
+      brokerType: user.brokerType,
+      mockBalance: user.mockBalance,
+      autoPilotMock: user.autoPilotMock,
+      autoPilotLive: user.autoPilotLive,
+      // Pass the pre-fetched data to the frontend
+      initialData: {
+        portfolio: portfolioItems,
+        recentAnalyses
+      }
+    };
+
     res.cookie('token', token, cookieOptions);
-    res.status(200).json({ user: { id: user.id, email: user.email, name: user.name, brokerType: user.brokerType, zerodhaApiKey: user.zerodhaApiKey, hasZerodhaApiSecret: !!user.zerodhaApiSecret, hasZerodhaAccessToken: !!user.zerodhaAccessToken, zerodhaAccessExpiry: user.zerodhaAccessExpiry, growwApiKey: user.growwApiKey, hasGrowwApiSecret: !!user.growwApiSecret, hasGrowwAccessToken: !!user.growwAccessToken, growwAccessExpiry: user.growwAccessExpiry, dhanApiKey: user.dhanApiKey, hasDhanApiSecret: !!user.dhanApiSecret, hasDhanAccessToken: !!user.dhanAccessToken, dhanAccessExpiry: user.dhanAccessExpiry, mockBalance: user.mockBalance, autoPilotMock: user.autoPilotMock, autoPilotLive: user.autoPilotLive, pilotLimitMock: user.pilotLimitMock, pilotLimitLive: user.pilotLimitLive }, token });
+    res.status(200).json({ user: userPayload, token });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Something went wrong' });

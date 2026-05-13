@@ -80,7 +80,25 @@ const Dashboard = () => {
 
     useEffect(() => {
         fetchMarket();
-        fetchRecentAnalyses();
+        
+        // 2-Step Login Optimization: Check for pre-fetched data
+        const initialDataRaw = localStorage.getItem('initial_dashboard_data');
+        if (initialDataRaw) {
+            try {
+                const initialData = JSON.parse(initialDataRaw);
+                if (initialData.recentAnalyses) {
+                    setRecentStocks(initialData.recentAnalyses);
+                }
+                // Clear the temporary cache after a few seconds so it doesn't affect future sessions
+                setTimeout(() => {
+                    localStorage.removeItem('initial_dashboard_data');
+                }, 5000);
+            } catch (e) {
+                console.error('Failed to parse initial dashboard data', e);
+            }
+        } else {
+            fetchRecentAnalyses();
+        }
     }, [user]);
 
     useEffect(() => {

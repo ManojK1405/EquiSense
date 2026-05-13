@@ -33,9 +33,24 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const checkUser = async (email) => {
+    try {
+      const response = await api.post('/auth/check-user', { email });
+      return response.data;
+    } catch (error) {
+      return null;
+    }
+  };
+
   const login = async (email, password) => {
     const response = await api.post('/auth/login', { email, password });
     const { user, token } = response.data;
+    
+    // Cache the initial dashboard data for instant loading
+    if (user.initialData) {
+        localStorage.setItem('initial_dashboard_data', JSON.stringify(user.initialData));
+    }
+
     localStorage.setItem('token', token);
     setUser(user);
     setShowAuthModal(false);
@@ -82,6 +97,7 @@ export const AuthProvider = ({ children }) => {
       logout, 
       showAuthModal, 
       setShowAuthModal,
+      checkUser,
       refreshUser: fetchUser
     }}>
       {children}

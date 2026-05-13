@@ -6,7 +6,7 @@ export default function ContactUs() {
     return (
         <div className="bg-white min-h-screen pt-32 pb-20">
             <div className="max-w-5xl mx-auto px-6">
-                <motion.div 
+                <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     className="text-center mb-20"
@@ -24,12 +24,12 @@ export default function ContactUs() {
                         <div className="p-8 bg-slate-50 rounded-[40px] border border-slate-100 hover:border-orange-200 transition-colors group">
                             <Mail className="w-8 h-8 text-orange-500 mb-6 group-hover:scale-110 transition-transform" />
                             <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest mb-2">Email Support</h3>
-                            <p className="text-slate-500 font-bold">manojkalasgonda7@gmail.com</p>
+                            <p className="text-slate-500 font-bold">manojequisense@gmail.com</p>
                         </div>
                         <div className="p-8 bg-slate-50 rounded-[40px] border border-slate-100 hover:border-rose-200 transition-colors group">
                             <MessageSquare className="w-8 h-8 text-rose-500 mb-6 group-hover:scale-110 transition-transform" />
                             <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest mb-2">Institutional Inquiries</h3>
-                            <p className="text-slate-500 font-bold">manojkalasgonda7@gmail.com</p>
+                            <p className="text-slate-500 font-bold">manojequisense@gmail.com</p>
                         </div>
                     </div>
 
