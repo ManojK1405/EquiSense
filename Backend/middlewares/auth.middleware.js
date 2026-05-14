@@ -13,6 +13,9 @@ export const auth = async (req, res, next) => {
 
     next();
   } catch (error) {
+    if (error.name === 'TokenExpiredError') {
+        return res.status(401).json({ message: 'Session expired. Please login again.' });
+    }
     console.error('Auth Middleware Error:', error.message);
     res.status(401).json({ message: 'Authentication failed: Invalid or expired token' });
   }

@@ -8,7 +8,7 @@ import dns from 'node:dns';
 
 // Force IPv4 for all network requests (Fixes Yahoo Finance API blocks on Render/Vercel)
 if (dns.setDefaultResultOrder) {
-    dns.setDefaultResultOrder('ipv4first');
+  dns.setDefaultResultOrder('ipv4first');
 }
 import { Server } from 'socket.io';
 
@@ -48,6 +48,7 @@ import cron from 'node-cron';
 const allowedOrigins = [
   'http://localhost:5173',
   'https://www.equisense.shop',
+  'https://equisense.shop',
   process.env.FRONTEND_URL
 ].filter(Boolean);
 

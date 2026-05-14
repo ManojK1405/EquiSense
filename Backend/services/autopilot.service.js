@@ -15,13 +15,20 @@ const TARGET_STOCKS = [
     'RVNL.NS', 'IRFC.NS', 'BHEL.NS', 'JIOFIN.NS', 'TATAELXSI.NS', 'POLYCAB.NS', 'MAZDOCK.NS', 'COCHINSHIP.NS', 'IRCTC.NS', 'PFC.NS'
 ];
 
+let isRunning = false;
+
 export const startAutoPilotService = () => {
     console.log('🚀 EquiTrade AI Pilot: Money Manager Mode Engaged');
     
-    // Run every 3 minutes during market hours
+    // Run every 10 minutes during market hours (Reduced frequency to prevent pool exhaustion)
     setInterval(async () => {
+        if (isRunning) return;
         try {
-            if (!isMarketOpen()) return;
+            isRunning = true;
+            if (!isMarketOpen()) {
+                isRunning = false;
+                return;
+            }
 
             const users = await prisma.user.findMany({
                 where: { 
@@ -32,17 +39,21 @@ export const startAutoPilotService = () => {
                 }
             });
 
+            // Process users sequentially to avoid overwhelming the DB connection pool
             for (const user of users) {
                 if (user.autoPilotMock) await manageUserWealth(user, 'mock');
                 if (user.autoPilotLive) await manageUserWealth(user, 'live');
+                // Small delay between users to let the DB breathe
+                await new Promise(r => setTimeout(r, 1000));
             }
             
-            // Reconcile settled funds
             await releaseSettledFunds();
         } catch (error) {
             console.error('AI Manager Error:', error.message);
+        } finally {
+            isRunning = false;
         }
-    }, 3 * 60 * 1000); 
+    }, 10 * 60 * 1000); 
 };
 
 export const releaseSettledFunds = async () => {
