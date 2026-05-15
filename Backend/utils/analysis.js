@@ -55,6 +55,19 @@ const calcMomentum = (closes, period = 10) => {
 };
 
 /**
+ * Target Stocks for Scanning
+ */
+export const TARGET_STOCKS = [
+    // Blue Chips & Heavyweights
+    'RELIANCE.NS', 'TCS.NS', 'INFY.NS', 'HDFCBANK.NS', 'ICICIBANK.NS', 'SBIN.NS', 'BHARTIARTL.NS', 'ITC.NS', 'ASIANPAINT.NS', 'LT.NS', 
+    'AXISBANK.NS', 'KOTAKBANK.NS', 'HINDUNILVR.NS', 'BAJFINANCE.NS', 'RELIANCE.NS', 'ADANIPORTS.NS', 'POWERGRID.NS', 'NTPC.NS', 'COALINDIA.NS',
+    // High-Growth / Mid-Cap / Trending
+    'ADANIENT.NS', 'TITAN.NS', 'M&M.NS', 'SUNPHARMA.NS', 'TATASTEEL.NS', 'KPITTECH.NS', 'DIXON.NS', 'ZOMATO.NS', 'HAL.NS', 'BEL.NS', 
+    'RVNL.NS', 'IRFC.NS', 'BHEL.NS', 'JIOFIN.NS', 'TATAELXSI.NS', 'POLYCAB.NS', 'MAZDOCK.NS', 'COCHINSHIP.NS', 'IRCTC.NS', 'PFC.NS',
+    'MAHABANK.NS', 'IOB.NS', 'TATACOMM.NS', 'CDSL.NS', 'BSE.NS', 'IREDA.NS', 'JWL.NS', 'TRIDENT.NS'
+];
+
+/**
  * Generates stock analysis and buy/sell signals
  */
 export const analyzeStock = (history, sentiment = 0) => {
@@ -193,22 +206,31 @@ export const analyzeStock = (history, sentiment = 0) => {
   let reasoning = [];
   let score = 0; 
 
-  if (currentRSI < 30) score += 30;
-  if (currentRSI > 70) score -= 30;
+  if (currentRSI < 30) score += 35; 
+  if (currentRSI < 40) score += 15; 
+  if (currentRSI > 75) score -= 10; // Reduced penalty
+  if (currentRSI > 85) score -= 20; // Reduced penalty
   
-  if (currentMACD && currentMACD.MACD > currentMACD.signal) score += 20;
-  else if (currentMACD) score -= 10;
+  if (currentMACD && currentMACD.MACD > currentMACD.signal) score += 25; 
+  if (currentMACD && currentMACD.histogram > 0) score += 10; 
+  
+  if (currentBB && lastPrice <= currentBB.lower) score += 20;
+  if (currentBB && lastPrice >= currentBB.upper) score -= 5; // Reduced penalty
 
-  if (currentBB && lastPrice <= currentBB.lower) score += 15;
-  if (currentBB && lastPrice >= currentBB.upper) score -= 15;
+  if (trend.direction === 'uptrend') {
+    score += trend.strength === 'strong' ? 35 : 25; // Increased weight
+  }
+  if (trend.direction === 'downtrend') score -= 20;
 
-  if (trend.direction === 'uptrend') score += 10;
-  if (trend.direction === 'downtrend') score -= 10;
+  if (volumeAnalysis.trend === 'increasing') {
+     score += 25; // Increased weight
+  }
 
-  if (volumeAnalysis.trend === 'increasing' && trend.direction === 'uptrend') score += 5;
-  if (volumeAnalysis.trend === 'increasing' && trend.direction === 'downtrend') score -= 5;
+  score += (sentiment * 30);
 
-  score += (sentiment * 20);
+  // INSTITUTIONAL QUALITY FILTER: High Score + Volume/Trend Confirmation
+  const isInstitutionalGrade = score >= 50; // Lowered from 60
+  const hasMomentum = trend.direction === 'uptrend' || volumeAnalysis.trend === 'increasing';
 
   if (score > 40) signal = 'STRONG BUY';
   else if (score > 15) signal = 'BUY';

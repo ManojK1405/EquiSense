@@ -7,13 +7,7 @@ const yahooFinance = new YahooFinance({
     validation: { logErrors: false }
 });
 
-const TARGET_STOCKS = [
-    // Blue Chips
-    'RELIANCE.NS', 'TCS.NS', 'INFY.NS', 'HDFCBANK.NS', 'ICICIBANK.NS', 'SBIN.NS', 'BHARTIARTL.NS', 'ITC.NS', 'ASIANPAINT.NS', 'LT.NS', 
-    // High-Growth / Mid-Cap / Trending
-    'ADANIENT.NS', 'TITAN.NS', 'M&M.NS', 'SUNPHARMA.NS', 'TATASTEEL.NS', 'KPITTECH.NS', 'DIXON.NS', 'ZOMATO.NS', 'HAL.NS', 'BEL.NS', 
-    'RVNL.NS', 'IRFC.NS', 'BHEL.NS', 'JIOFIN.NS', 'TATAELXSI.NS', 'POLYCAB.NS', 'MAZDOCK.NS', 'COCHINSHIP.NS', 'IRCTC.NS', 'PFC.NS'
-];
+import { analyzeStock, TARGET_STOCKS } from '../utils/analysis.js';
 
 let isRunning = false;
 
@@ -84,14 +78,14 @@ export const releaseSettledFunds = async () => {
     }
 };
 
-import { analyzeStock } from '../utils/analysis.js';
 
 async function getMarketPulse() {
     try {
         const quote = await yahooFinance.quote('^NSEI');
         return {
             isHealthy: (quote.regularMarketChangePercent || 0) > -1.5, // Avoid entering on crash days
-            niftyPrice: quote.regularMarketPrice
+            niftyPrice: quote.regularMarketPrice,
+            niftyPrevPrice: quote.regularMarketPreviousClose
         };
     } catch {
         return { isHealthy: true };
@@ -135,8 +129,8 @@ async function manageUserWealth(user, mode) {
                 const shouldSell = 
                     (analysis.signal.includes('SELL') && pnlPercent > 2.0) || // Locking in profit on reversal
                     (analysis.signal === 'STRONG SELL') || // Emergency exit
-                    (pnlPercent > 20.0) || // Extended profit target
-                    (pnlPercent < -3.5); // Tightened institutional stop loss
+                    (pnlPercent > 25.0) || // Extended profit target (Increased from 20)
+                    (pnlPercent < -4.5); // Slightly more breathing room for stops (from -3.5)
 
                 if (shouldSell) {
                     const exitReason = analysis.signal.includes('SELL') 
@@ -152,9 +146,9 @@ async function manageUserWealth(user, mode) {
         }
 
         // 2. INTELLIGENT ASSET ACQUISITION (Multi-Factor Scoring)
-        // Guard: Don't enter new positions if market pulse is unhealthy
-        if (!pulse.isHealthy) {
-            console.log(`[AI-PILOT] Market Pulse Unhealthy (Nifty Downturn). Skipping new acquisitions for user ${user.id}.`);
+        // Guard: Don't enter new positions if market pulse is exceptionally unhealthy
+        if (!pulse.isHealthy && pulse.niftyPrice < pulse.niftyPrevPrice * 0.98) {
+            console.log(`[AI-PILOT] Extreme Market Volatility detected. Skipping new acquisitions for user ${user.id}.`);
             return;
         }
 
@@ -169,18 +163,18 @@ async function manageUserWealth(user, mode) {
             currentBalanceAvailableToAI = userBalance;
         }
 
-        // Max 8 positions for optimal diversification focus
-        if (portfolio.length < 8 && currentBalanceAvailableToAI > 5000) {
+        // Max 10 positions for broader diversification (Increased from 8)
+        if (portfolio.length < 10 && currentBalanceAvailableToAI > 3000) {
             const candidate = await findSophisticatedCandidate(user);
             if (candidate && !portfolio.find(p => p.stock.symbol === candidate.symbol)) {
                 const quote = await yahooFinance.quote(candidate.symbol);
                 const price = quote.regularMarketPrice;
                 
-                // Allocation logic: Max 20% of total budget per stock
+                // Allocation logic: Max 15% of total budget per stock (Reduced from 20% for more positions)
                 const totalBudget = pilotLimit || (userBalance + totalInvested);
-                const allocationPerStock = totalBudget * 0.20; 
+                const allocationPerStock = totalBudget * 0.15; 
                 
-                const amountToInvest = Math.min(allocationPerStock, currentBalanceAvailableToAI, 150000); 
+                const amountToInvest = Math.min(allocationPerStock, currentBalanceAvailableToAI, 200000); 
                 const qty = Math.floor(amountToInvest / price);
 
                 if (qty > 0) {
@@ -194,16 +188,55 @@ async function manageUserWealth(user, mode) {
     }
 }
 
+let cachedDynamicPool = [];
+let lastPoolUpdate = 0;
+const POOL_CACHE_DURATION = 60 * 60 * 1000; // Refresh dynamic pool every hour
+
+async function getDynamicMarketPool() {
+    const now = Date.now();
+    if (cachedDynamicPool.length > 0 && (now - lastPoolUpdate < POOL_CACHE_DURATION)) {
+        return cachedDynamicPool;
+    }
+
+    try {
+        console.log('[AI-PILOT] Refreshing dynamic market pool...');
+        // Fetch trending symbols in India
+        const trending = await yahooFinance.trendingSymbols('IN', { count: 15 });
+        const trendingSymbols = trending.quotes?.map(q => q.symbol) || [];
+
+        // Add some high-liquidity fallback leaders to ensure a baseline
+        const baseLeaders = ['RELIANCE.NS', 'TCS.NS', 'HDFCBANK.NS', 'ICICIBANK.NS', 'INFY.NS', 'SBIN.NS', 'BHARTIARTL.NS'];
+        
+        // Merge and unique
+        const pool = [...new Set([...trendingSymbols, ...baseLeaders, ...TARGET_STOCKS])];
+        cachedDynamicPool = pool.filter(s => s && s.endsWith('.NS'));
+        lastPoolUpdate = now;
+        
+        console.log(`[AI-PILOT] Dynamic pool refreshed with ${cachedDynamicPool.length} symbols.`);
+        return cachedDynamicPool;
+    } catch (error) {
+        console.error('[AI-PILOT] Failed to fetch dynamic pool:', error.message);
+        return TARGET_STOCKS; // Fallback to hardcoded list on API failure
+    }
+}
+
 async function findSophisticatedCandidate(user) {
     const watchlist = await prisma.watchlist.findMany({
         where: { userId: user.id },
         include: { stock: true }
     });
 
-    const pool = watchlist.length > 5 ? watchlist.map(w => w.stock.symbol) : [...new Set([...watchlist.map(w => w.stock.symbol), ...TARGET_STOCKS])];
+    const dynamicPool = await getDynamicMarketPool();
+    
+    // Primary: User Watchlist -> Secondary: Dynamic Trending -> Fallback: Global Targets
+    const pool = [...new Set([
+        ...watchlist.map(w => w.stock.symbol),
+        ...dynamicPool
+    ])];
     
     try {
-        const scanPool = pool.slice(0, 25);
+        // Increase scan breadth for institutional quality discovery
+        const scanPool = pool.slice(0, 50); 
         const candidates = [];
 
         for (const symbol of scanPool) {
@@ -224,15 +257,15 @@ async function findSophisticatedCandidate(user) {
 
             const analysis = analyzeStock(history);
             
-            // INSTITUTIONAL QUALITY FILTER: High Score + Volume Confirmation
-            const hasVolumeConfirmation = analysis.volumeTrend === 'Rising';
-            const isInstitutionalGrade = analysis.score >= 60; 
+            // RELAXED FILTER: Lower score + Momentum check
+            const isInstitutionalGrade = analysis.score >= 50; // Lowered from 60
+            const hasMomentum = analysis.trendAnalysis?.overall?.direction === 'uptrend' || analysis.trendAnalysis?.volume?.trend === 'increasing';
 
-            if ((analysis.signal === 'STRONG BUY' || analysis.signal === 'BUY') && isInstitutionalGrade && hasVolumeConfirmation) {
+            if ((analysis.signal === 'STRONG BUY' || analysis.signal === 'BUY') && isInstitutionalGrade && hasMomentum) {
                 candidates.push({
                     symbol,
                     score: analysis.score,
-                    reason: `Institutional conviction detected in ${symbol} (Quant Score: ${analysis.score}). Volume trend: ${analysis.volumeTrend}.`
+                    reason: `Institutional conviction detected in ${symbol} (Quant Score: ${analysis.score}). Volume: ${analysis.trendAnalysis.volume.trend}.`
                 });
             }
         }
