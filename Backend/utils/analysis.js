@@ -237,9 +237,17 @@ export const analyzeStock = (history, sentiment = 0) => {
   else if (score < -40) signal = 'STRONG SELL';
   else if (score < -15) signal = 'SELL';
 
-  if (currentRSI < 35) reasoning.push('Technical indicators show stock is oversold.');
-  if (currentMACD?.MACD > currentMACD?.signal) reasoning.push('MACD trend crossover confirms bullish momentum.');
-  if (sentiment > 0.4) reasoning.push('News sentiment is exceptionally positive.');
+  // Build rich reasoning from all computed indicator descriptions
+  reasoning.push(rsiDescription);
+  if (macdDescription) reasoning.push(macdDescription);
+  if (bbDescription) reasoning.push(bbDescription);
+  reasoning.push(trendDescription);
+  if (volumeAnalysis.description) reasoning.push(volumeAnalysis.description);
+  if (momentum.description) reasoning.push(momentum.description);
+  reasoning.push(`Key support at ₹${(pivotData.s1 || lastPrice * 0.98).toFixed(1)} — resistance at ₹${(pivotData.r1 || lastPrice * 1.02).toFixed(1)}.`);
+  if (sentiment > 0.4) reasoning.push('News sentiment is exceptionally positive — institutional accumulation likely.');
+  else if (sentiment < -0.3) reasoning.push('News sentiment is negative — watch for increased selling pressure.');
+  else reasoning.push('News sentiment is broadly neutral with no strong directional bias from recent headlines.');
 
   // ----- Technical Indicator Suite (Extended for Institutional Reporting) -----
   const getEMA = (period) => {
@@ -332,9 +340,21 @@ export const analyzeStock = (history, sentiment = 0) => {
     sl = pivotData.s1 < entry * 0.99 ? pivotData.s1 : entry - volBuffer;
   }
 
-  // Final safety checks to ensure no zeros or nulls
-  const finalTarget = parseFloat((target || (isBearish ? entry * 0.95 : entry * 1.05)).toFixed(2));
-  const finalSl = parseFloat((sl || (isBearish ? entry * 1.03 : entry * 0.97)).toFixed(2));
+  // Final safety checks to ensure no zeros, nulls, or negative values
+  const rawTarget = target || (isBearish ? entry * 0.95 : entry * 1.05);
+  const rawSl = sl || (isBearish ? entry * 1.03 : entry * 0.97);
+
+  // Enforce sanity bounds:
+  // - Stop loss for a BUY must be below entry and above 40% of entry (no extreme wipeouts)
+  // - Stop loss for a SELL must be above entry and below 160% of entry
+  // - Target must be on the correct side of entry
+  const finalTarget = parseFloat(Math.abs(rawTarget).toFixed(2));
+  let finalSl;
+  if (isBearish) {
+    finalSl = parseFloat(Math.max(Math.abs(rawSl), entry * 1.005).toFixed(2));
+  } else {
+    finalSl = parseFloat(Math.max(Math.min(Math.abs(rawSl), entry * 0.995), entry * 0.60).toFixed(2));
+  }
 
   // Calculate Reward Ratio: (Target - Entry) / (Entry - StopLoss)
   const risk = Math.abs(entry - finalSl);

@@ -66,18 +66,32 @@ export const getAIStrategy = generateGeminiText; // Alias for backward compatibi
 
 export const getAIPredictionReasoning = async (symbol, indicators, sentiment, trendAnalysis) => {
     const prompt = `
-        Persona: Institutional Research Analyst.
-        Objective: Provide a high-conviction quantitative reasoning for ${symbol}.
+        Persona: Senior Institutional Research Analyst at a top-tier quant fund.
+        Objective: Generate a detailed quantitative investment thesis for ${symbol}.
         
-        Data points:
-        - Indicators: ${JSON.stringify(indicators)}
-        - Sentiment Score: ${sentiment}
-        - Trend: ${trendAnalysis}
+        Data:
+        - RSI: ${indicators?.rsi?.toFixed?.(1) || 'N/A'} (${indicators?.rsi < 30 ? 'Oversold' : indicators?.rsi > 70 ? 'Overbought' : 'Neutral'})
+        - MACD: Line ${indicators?.macd?.MACD?.toFixed?.(2) || 'N/A'} vs Signal ${indicators?.macd?.signal?.toFixed?.(2) || 'N/A'} (${indicators?.macd?.MACD > indicators?.macd?.signal ? 'Bullish crossover' : 'Bearish'})
+        - Bollinger Bands: Price at ${indicators?.bb?.middle ? 'middle band' : 'upper/lower band'}
+        - Trend: ${trendAnalysis?.overall?.direction || 'sideways'} (${trendAnalysis?.overall?.strength || 'moderate'})
+        - News Sentiment Score: ${sentiment?.toFixed?.(2) || '0'} (${sentiment > 0.3 ? 'Positive' : sentiment < -0.3 ? 'Negative' : 'Neutral'})
         
-        Instruction: Synthesize this into a 2-sentence institutional-grade rationale. Focus on the convergence of technicals and sentiment.
+        Instruction: Return EXACTLY 5 numbered bullet points. Each should be 1 sentence of institutional-grade analysis.
+        Cover: (1) RSI momentum read, (2) MACD signal interpretation, (3) trend alignment assessment, 
+        (4) risk-reward observation, (5) a forward-looking catalyst or watch point.
+        
+        Format strictly as:
+        1. [sentence]
+        2. [sentence]
+        3. [sentence]
+        4. [sentence]
+        5. [sentence]
+        
+        Do NOT add headers, preamble, or disclaimers. Be specific with numbers where possible.
     `;
     return await generateGeminiText(prompt);
 };
+
 
 export const extractStockSymbol = async (query) => {
     const prompt = `
