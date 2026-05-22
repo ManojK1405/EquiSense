@@ -130,7 +130,11 @@ export const getStockPrediction = async (req, res) => {
        return "Market analysis suggests following current trends.";
     });
     
-    const aiReasoningList = aiReasoningStr.split('\n').filter(r => r.trim()).map(r => r.replace(/^[*-]\s*/, ''));
+    const aiReasoningList = aiReasoningStr
+        .split('\n')
+        .filter(r => r.trim())
+        .map(r => r.replace(/^[\d]+\.\s*/, '').replace(/^[*\-]\s*/, '').trim())
+        .filter(r => r.length > 10); // filter out any empty or junk lines
     analysis.reasoning = [...new Set([...analysis.reasoning, ...aiReasoningList])];
 
     if (quote) {
