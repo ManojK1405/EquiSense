@@ -48,7 +48,7 @@ export const getMarketSummaryData = async () => {
     // Resolve trending symbols first
     let trendingSymbols = [];
     try {
-        const trendingResp = await yahooFinance.trendingSymbols('IN', { count: 10 });
+        const trendingResp = await yahooFinance.trendingSymbols('IN', { count: 10 }, { validateResult: false });
         trendingSymbols = trendingResp.quotes?.map(q => q.symbol) || [];
     } catch (err) {
         console.warn('[MarketService] Trending API failed, using hardcoded fallbacks');
